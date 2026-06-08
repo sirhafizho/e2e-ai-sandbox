@@ -1,72 +1,52 @@
 # E2E AI Sandbox
 
-An end-to-end AI agent sandbox — a local-first development environment that gives AI agents (Claude, GPT, Ollama, etc.) full access to a Docker-isolated workspace with shell, browser, filesystem, and network capabilities.
+A local-first desktop app giving AI agents (Claude, GPT, Ollama) full access to Docker-isolated workspaces with shell, browser, filesystem, and network capabilities.
 
 ## Vision
 
-Build a desktop application that:
-- Spawns isolated Docker containers per agent session
-- Exposes tools (shell, browser, file I/O, git) via a REST + event-stream API
-- Supports multiple LLM backends (Claude, OpenAI, Ollama)
-- Provides a desktop UI for session management, terminal emulation, and browser viewport
+- Spawn isolated Docker containers per agent session
+- Expose tools (shell, browser, file I/O, git) via REST + SSE API
+- Support multiple LLM backends (Claude, OpenAI, Ollama)
+- Desktop UI for session management, terminal, and browser viewport
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│  AI Agent (Local LLM / Claude / GPT)    │
-└────────────┬────────────────────────────┘
-             │ JSON-RPC 2.0 / REST API
-             ▼
-┌─────────────────────────────────────────┐
-│  Agent Server (Node.js / Python)        │
-│  - Tool registry                        │
-│  - Event streaming                      │
-│  - Session management                   │
-└────────────┬────────────────────────────┘
-             │ Docker socket / stdio
-             ▼
-┌─────────────────────────────────────────┐
-│  Docker Sandbox (per-session)           │
-│  ├─ Bash shell (full CLI access)       │
-│  ├─ Python/Node/Langs (runtime env)    │
-│  ├─ Git (repo management)              │
-│  ├─ Chromium (Playwright)              │
-│  ├─ File system (read/write)           │
-│  └─ Network access (curl, wget, etc.)  │
-└─────────────────────────────────────────┘
-
-Desktop/Mac UI (TBD: Tauri or Electron)
-├─ Session manager
-├─ Tool output viewer
-├─ Terminal emulator (xterm)
-└─ Browser viewport
+AI Agent (LLM)
+    │ REST API + SSE
+    ▼
+Agent Server (tool registry, sessions, event streaming)
+    │ Docker socket
+    ▼
+Docker Sandbox (bash, python, node, git, playwright, network)
+    │
+Desktop UI (terminal, browser viewport, session manager)
 ```
 
-## Development Methodology
+## Development Method
 
-This project uses **lightweight BMAD** (Behavior-Mapping & Artifact-Driven) — spec-first development for critical paths:
-- Agent ↔ Sandbox API contract
-- Tool dispatch system
-- Session isolation model
+This project uses the **BMad Method** (v6.8.0) — a spec-driven, AI-native agile framework.
 
-Specs live in `specs/` and are mirrored in the Obsidian vault (`vault/`) for human navigation.
+**Workflow:** Analysis → Planning (PRD) → Solutioning (Architecture + Epics) → Implementation (Sprint cycles)
+
+See `CLAUDE.md` for full workflow instructions.
 
 ## Project Structure
 
 ```
 e2e-ai-sandbox/
-├── specs/           # BMAD behavioral specs (source of truth)
-│   ├── api/         # Agent-server API contracts
-│   ├── sandbox/     # Docker sandbox behavior
-│   ├── tools/       # Tool definitions and dispatch
-│   └── ui/          # Desktop UI specs (later)
-├── docs/            # Research, ADRs, notes
-├── vault/           # Obsidian vault (sessions, decisions, architecture)
-├── src/             # Implementation (empty until specs are approved)
-└── TODO.md          # Spec-first task breakdown
+├── _bmad/                 # BMAD framework (config, agents, module skills)
+├── _bmad-output/          # BMAD artifacts
+│   ├── planning-artifacts/    # PRD, architecture, epics
+│   └── implementation-artifacts/  # Sprint status, stories
+├── .claude/skills/        # 44 BMAD skills for Claude Code
+├── vault/                 # Obsidian vault (project memory)
+├── specs/                 # Legacy specs (migrating into BMAD)
+├── docs/                  # Research, project knowledge
+├── src/                   # Implementation (Phase 4)
+└── CLAUDE.md              # AI assistant instructions
 ```
 
 ## Status
 
-**Phase: Specification** — No implementation yet. Defining contracts and behaviors first.
+**BMAD Phase 1 complete (Analysis).** Next: `/bmad-product-brief` → `/bmad-prd`.

@@ -5,7 +5,13 @@ dist/
 !.env.example
 *.log
 .DS_Store
+# Obsidian
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 .obsidian/plugins/
 .obsidian/themes/
+.obsidian/cache/
+
+# BMAD user config (personal, not team)
+_bmad/custom/config.user.toml
+_bmad/custom/*.user.toml
