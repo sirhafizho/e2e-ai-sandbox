@@ -1,7 +1,10 @@
-# E2E AI Sandbox — Vault Home
+# Forge — Vault Home
 
-**Current Phase:** BMAD Phase 1 (Analysis) → Ready for Phase 2  
-**Last Session:** [[Session 2026-06-08]]
+> Self-Hostable Autonomous Coding Agent (formerly "E2E AI Sandbox")
+
+**Current Phase:** BMAD Phase 1 (Analysis) complete -> Phase 2 (Planning) ready to start
+**Last Session:** [[Session 2026-06-24]]
+**Project Overhauled:** 2026-06-24 — expanded scope from sandbox to full autonomous agent
 
 ## Quick Links
 
@@ -12,22 +15,41 @@
 
 ## Session Start Checklist
 
-1. Read the latest file in `sessions/` for context
-2. Check `decisions/` if making architectural choices
-3. Run `/bmad-help` or `/bmad-sprint-status` in Claude Code
-4. Log your session at the end
+1. Greet Hafiz by name
+2. Read the latest file in `sessions/` for context
+3. Check `decisions/` if making architectural choices
+4. Run `/bmad-help` or `/bmad-sprint-status` if using BMAD
+5. State your understanding of current project state
+6. Log your session at the end (MANDATORY)
 
 ## Project Status
 
-| Phase | Status | Artifacts |
-|-------|--------|-----------|
-| Analysis | Done (research complete) | `docs/research-findings.md` |
-| Planning | Not started | Need `/bmad-product-brief` or `/bmad-prd` |
-| Solutioning | Not started | — |
-| Implementation | Not started | — |
+| Phase | Status | Key Artifacts |
+|-------|--------|---------------|
+| Analysis | Done | `docs/research-findings.md`, `docs/devin-vs-sandbox-analysis.md` |
+| Planning | Ready to start | Need `/bmad-product-brief` then `/bmad-prd` |
+| Solutioning | Not started | Need architecture + epics after PRD |
+| Implementation | Not started | After solutioning complete |
+
+## Specs Status
+
+| Spec | Status | Path |
+|------|--------|------|
+| Agent Server API | Draft (revised) | `specs/api/agent-server-api.md` |
+| Docker Sandbox + Snapshots | Draft (revised) | `specs/sandbox/docker-sandbox.md` |
+| Tool Registry | Draft (revised) | `specs/tools/tool-registry.md` |
+| Agent Loop & Context Mgmt | Draft (new) | `specs/agent/agent-loop.md` |
+| Knowledge System | Draft (new) | `specs/knowledge/knowledge-system.md` |
+| Web UI | Draft (new) | `specs/ui/web-ui.md` |
 
 ## Pending Decisions
 
-- [ ] Tauri vs Electron (desktop framework)
-- [ ] TypeScript vs Python (agent server)
-- [ ] Monorepo structure
+All major tech decisions resolved on 2026-06-24. See [[Decisions Log]] ADR-004 through ADR-009.
+
+## Key Reference Docs
+
+- `docs/devin-vs-sandbox-analysis.md` — Gap analysis: Devin vs our project, landscape review, overhaul plan
+- `docs/devin_harness_engineering.md` — How Devin Cloud works (reference)
+- `docs/research-findings.md` — Original research on OpenHands, SWE-agent, etc.
+- `CLAUDE.md` — Project rules, session protocol, tech stack
+- `AGENTS.md` — AI agent session protocol (greeting, context, anti-hallucination)
