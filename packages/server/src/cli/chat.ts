@@ -125,6 +125,22 @@ export async function runChat(initialMessage: string | undefined, options: ChatO
     if (input.trim() === '') continue;
     if (input.trim() === '/exit' || input.trim() === '/quit') break;
 
+    if (input.trim() === '/history') {
+      const history = agentLoop.getHistory();
+      console.log(chalk.dim(`\nConversation history (${history.length} messages):`));
+      for (const entry of history.getSummary()) {
+        console.log(chalk.dim(`  [${entry.role}] ${entry.preview}`));
+      }
+      console.log();
+      continue;
+    }
+
+    if (input.trim() === '/clear') {
+      agentLoop.getHistory().clear();
+      console.log(chalk.dim('\nConversation history cleared.\n'));
+      continue;
+    }
+
     await processMessage(input);
   }
 

@@ -14,6 +14,7 @@ interface SessionState {
   status: 'created' | 'booting' | 'ready' | 'running' | 'terminated';
   createdAt: string;
   volumeName?: string;
+  agentLoop?: AgentLoop;
 }
 
 export function createApp() {
@@ -160,17 +161,19 @@ export function createApp() {
 
     session.status = 'running';
 
-    const providerConfig: LLMProviderConfig = {
-      type: 'ollama',
-      model: session.model,
-    };
+    // Lazily create agent loop per session (preserves conversation history)
+    if (!session.agentLoop) {
+      const providerConfig: LLMProviderConfig = {
+        type: 'ollama',
+        model: session.model,
+      };
+      const model = createProvider(providerConfig);
+      session.agentLoop = new AgentLoop(model, toolRegistry, containerManager);
+    }
 
     try {
-      const model = createProvider(providerConfig);
-      const agentLoop = new AgentLoop(model, toolRegistry, containerManager);
-
       const events: unknown[] = [];
-      for await (const event of agentLoop.run(content, {
+      for await (const event of session.agentLoop.run(content, {
         sessionId: session.id,
         containerId: session.containerId,
         model: session.model,
@@ -180,7 +183,10 @@ export function createApp() {
 
       session.status = 'ready';
 
-      return c.json({ events });
+      return c.json({
+        events,
+        history_length: session.agentLoop.getHistory().length,
+      });
     } catch (err) {
       session.status = 'ready';
       return c.json(

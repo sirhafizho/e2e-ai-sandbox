@@ -1,7 +1,8 @@
-import { streamText, dynamicTool, isStepCount, type LanguageModel, type ModelMessage } from 'ai';
+import { streamText, dynamicTool, isStepCount, type LanguageModel } from 'ai';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ContainerManager } from '../sandbox/container-manager.js';
 import type { SessionContext, AgentEvent } from './types.js';
+import { ConversationHistory } from './conversation-history.js';
 import { buildSystemPrompt } from './system-prompt.js';
 
 const MAX_STEPS = 25;
@@ -10,15 +11,23 @@ export class AgentLoop {
   private model: LanguageModel;
   private toolRegistry: ToolRegistry;
   private containerManager: ContainerManager;
+  private history: ConversationHistory;
 
   constructor(
     model: LanguageModel,
     toolRegistry: ToolRegistry,
     containerManager: ContainerManager,
+    history?: ConversationHistory,
   ) {
     this.model = model;
     this.toolRegistry = toolRegistry;
     this.containerManager = containerManager;
+    this.history = history ?? new ConversationHistory();
+  }
+
+  /** Get the conversation history for inspection or persistence. */
+  getHistory(): ConversationHistory {
+    return this.history;
   }
 
   async *run(userMessage: string, sessionContext: SessionContext): AsyncGenerator<AgentEvent> {
@@ -30,7 +39,8 @@ export class AgentLoop {
         sessionId: sessionContext.sessionId,
       });
 
-    const messages: ModelMessage[] = [{ role: 'user', content: userMessage }];
+    // Append user message to conversation history
+    this.history.addUserMessage(userMessage);
 
     // Build AI SDK tool definitions from registry using dynamicTool()
     // for runtime-registered tools with unknown input/output types
@@ -55,7 +65,7 @@ export class AgentLoop {
     const result = streamText({
       model: this.model,
       system: systemPrompt,
-      messages,
+      messages: this.history.getMessages(),
       tools: aiTools,
       stopWhen: isStepCount(MAX_STEPS),
     });
@@ -117,6 +127,11 @@ export class AgentLoop {
         }
       }
     }
+
+    // Capture assistant response messages (text + tool calls/results)
+    // and append to history for the next turn
+    const responseMessages = await result.responseMessages;
+    this.history.addResponseMessages(responseMessages);
 
     yield { type: 'done', data: { totalText: currentText } };
   }
