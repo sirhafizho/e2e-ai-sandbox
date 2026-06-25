@@ -4,6 +4,12 @@ import { Command } from 'commander';
 import { runChat } from './chat.js';
 import { runDoctor } from './doctor.js';
 import { runSessionsList, runSessionsShow, runSessionsDelete } from './sessions.js';
+import {
+  runSnapshotBuild,
+  runSnapshotList,
+  runSnapshotPrune,
+  runSnapshotInspect,
+} from './snapshot.js';
 
 const program = new Command();
 
@@ -48,6 +54,39 @@ sessionsCmd
   .description('Delete a persisted session')
   .action((id: string) => {
     runSessionsDelete(id);
+  });
+
+const snapshotCmd = program
+  .command('snapshot')
+  .description('Manage environment snapshots');
+
+snapshotCmd
+  .command('build [path]')
+  .description('Build a snapshot from an environment.yaml file')
+  .option('--no-cache', 'Force rebuild even if cached')
+  .action(async (path: string | undefined, options: { cache: boolean }) => {
+    await runSnapshotBuild(path ?? 'environment.yaml', { noCache: !options.cache });
+  });
+
+snapshotCmd
+  .command('list')
+  .description('List all snapshots')
+  .action(async () => {
+    await runSnapshotList();
+  });
+
+snapshotCmd
+  .command('prune')
+  .description('Remove all snapshots')
+  .action(async () => {
+    await runSnapshotPrune();
+  });
+
+snapshotCmd
+  .command('inspect <name>')
+  .description('Show snapshot details')
+  .action(async (name: string) => {
+    await runSnapshotInspect(name);
   });
 
 program.parse();

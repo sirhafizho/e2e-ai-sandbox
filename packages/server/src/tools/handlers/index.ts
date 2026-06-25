@@ -10,3 +10,11 @@ export {
   gitCreatePrTool,
   gitPrStatusTool,
 } from './git-tools.js';
+export {
+  browserNavigateTool,
+  browserClickTool,
+  browserTypeTool,
+  browserScreenshotTool,
+  browserEvaluateTool,
+  browserGetTextTool,
+} from './browser-tools.js';

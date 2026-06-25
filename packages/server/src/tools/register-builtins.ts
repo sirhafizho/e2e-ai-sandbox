@@ -13,6 +13,12 @@ import {
   gitPushTool,
   gitCreatePrTool,
   gitPrStatusTool,
+  browserNavigateTool,
+  browserClickTool,
+  browserTypeTool,
+  browserScreenshotTool,
+  browserEvaluateTool,
+  browserGetTextTool,
 } from './handlers/index.js';
 
 export function registerBuiltinTools(registry: ToolRegistry): void {
@@ -36,4 +42,12 @@ export function registerBuiltinTools(registry: ToolRegistry): void {
   registry.register(gitPushTool);
   registry.register(gitCreatePrTool);
   registry.register(gitPrStatusTool);
+
+  // Browser
+  registry.register(browserNavigateTool);
+  registry.register(browserClickTool);
+  registry.register(browserTypeTool);
+  registry.register(browserScreenshotTool);
+  registry.register(browserEvaluateTool);
+  registry.register(browserGetTextTool);
 }

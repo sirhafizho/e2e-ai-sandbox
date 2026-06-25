@@ -27,12 +27,14 @@
     "commander": "^15.0.0",
     "dockerode": "^5.0.1",
     "hono": "^4.12.27",
+    "js-yaml": "^5.1.0",
     "ora": "^9.4.1",
     "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/js-yaml": "^4.0.9",
     "@types/ws": "^8.18.1"
   }
 }

@@ -25,3 +25,25 @@ export type { SessionState, CreateAppOptions } from './server/index.js';
 
 export { openDatabase, getDefaultDbPath, SessionStore } from './db/index.js';
 export type { SessionRow, CreateSessionInput, UpdateSessionInput } from './db/index.js';
+
+export {
+  BlueprintSchema,
+  parseBlueprint,
+  loadBlueprint,
+  computeHash,
+  snapshotImageTag,
+  SnapshotBuilder,
+} from './snapshot/index.js';
+export type {
+  Blueprint,
+  BlueprintRepo,
+  BlueprintResources,
+  ParseResult,
+  BuildProgress,
+  ProgressCallback,
+  BuildOptions,
+  BuildResult,
+  StepResult,
+  SnapshotInfo,
+  SnapshotDetail,
+} from './snapshot/index.js';
