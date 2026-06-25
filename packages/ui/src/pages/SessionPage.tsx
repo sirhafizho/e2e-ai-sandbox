@@ -2,9 +2,11 @@ import { useParams } from 'react-router-dom';
 import { useEffect, useRef, useCallback } from 'react';
 import { WorkspaceLayout } from '../components/layout/WorkspaceLayout.js';
 import { ChatPanel } from '../components/chat/ChatPanel.js';
+import { TerminalPanel } from '../components/terminal/TerminalPanel.js';
+import { FilePanel } from '../components/files/FilePanel.js';
+import { BrowserPanel } from '../components/browser/BrowserPanel.js';
 import { useSessionStore } from '../lib/store.js';
 import { ForgeWebSocket } from '../lib/websocket.js';
-import { Terminal, Globe, FolderTree } from 'lucide-react';
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>();
@@ -126,25 +128,9 @@ export function SessionPage() {
           onCancel={handleCancel}
         />
       }
-      terminalPanel={<PlaceholderPanel icon={Terminal} label="Terminal" />}
-      browserPanel={<PlaceholderPanel icon={Globe} label="Browser" />}
-      filePanel={<PlaceholderPanel icon={FolderTree} label="Files" />}
+      terminalPanel={<TerminalPanel sessionId={id ?? null} />}
+      browserPanel={<BrowserPanel sessionId={id ?? null} />}
+      filePanel={<FilePanel sessionId={id ?? null} />}
     />
-  );
-}
-
-function PlaceholderPanel({
-  icon: Icon,
-  label,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center border-b border-zinc-800 bg-zinc-950/50 text-zinc-600">
-      <Icon className="mb-2 h-8 w-8" />
-      <span className="text-sm">{label}</span>
-      <span className="mt-1 text-xs text-zinc-700">Coming soon</span>
-    </div>
   );
 }
