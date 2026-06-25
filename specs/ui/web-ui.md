@@ -111,7 +111,7 @@
 ## Chat Panel — Details
 
 - **Streaming markdown rendering**
-  - Use `react-markdown` or `@mdx-js/react` with `remark-gfm`
+  - Use `streamdown` with `remark-gfm`
   - Code blocks with syntax highlighting (`rehype-highlight` or `shiki`)
   - Copy button on every code block
   - Inline code, tables, lists all rendered properly
@@ -188,7 +188,7 @@
   - Lazy-loaded (expand directories on click)
   - Icons by file type (folder, JS, Python, Markdown, etc.)
   - Context menu: rename, delete, create file/folder (v2)
-- **Monaco Editor** for file viewing/editing
+- **CodeMirror 6** for file viewing/editing
   - Opens when a file is selected in the tree
   - Syntax highlighting (auto-detected by file extension)
   - Line numbers, minimap
@@ -221,12 +221,12 @@
 | Framework | React 18+ | Ecosystem, component libraries, familiarity |
 | Build tool | Vite | Fast HMR, ESM-native, simple config |
 | Terminal | xterm.js + `xterm-addon-fit` | Industry standard web terminal |
-| Code editor | Monaco Editor (`@monaco-editor/react`) | VS Code's editor, full-featured |
+| Code editor | CodeMirror 6 (`@uiw/react-codemirror`) | Modular, 5-10x smaller than Monaco |
 | API state | TanStack Query (React Query) | Caching, refetching, optimistic updates |
 | UI state | Zustand | Minimal, no boilerplate, good devtools |
 | Styling | Tailwind CSS | Utility-first, fast iteration, dark mode support |
 | WebSocket | Native `WebSocket` API (+ reconnecting wrapper) | No library needed; lightweight |
-| Markdown | `react-markdown` + `remark-gfm` + `rehype-highlight` | Extensible, well-maintained |
+| Markdown | `streamdown` + `remark-gfm` + `rehype-highlight` | Streaming-first markdown renderer |
 | Routing | React Router v6 | Standard choice |
 | Icons | Lucide React | Clean, consistent, tree-shakeable |
 | Resizable panels | `react-resizable-panels` | Lightweight, accessible |
@@ -245,7 +245,7 @@ The frontend expects the Agent Server to expose:
 | `POST` | `/api/sessions` | Create a new session |
 | `GET` | `/api/sessions/:id` | Get session details |
 | `DELETE` | `/api/sessions/:id` | Delete a session |
-| `POST` | `/api/sessions/:id/message` | Send user message |
+| `POST` | `/api/sessions/:id/messages` | Send user message |
 | `POST` | `/api/sessions/:id/stop` | Stop current agent action |
 | `GET` | `/api/sessions/:id/files?path=` | List directory or get file content |
 | `PUT` | `/api/sessions/:id/files` | Write file content |

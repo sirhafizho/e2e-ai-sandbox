@@ -102,10 +102,10 @@ Stored in SQLite. See [[Knowledge System Spec]] (`specs/knowledge/knowledge-syst
 | Component | Choice |
 |-----------|--------|
 | Agent server | TypeScript (Node.js) |
-| Web framework | Fastify or Hono |
+| Web framework | Hono |
 | UI | React + Vite |
 | Terminal | xterm.js |
-| Editor | Monaco |
+| Editor | CodeMirror 6 |
 | Database | SQLite |
 | Docker SDK | dockerode |
 | Browser automation | Playwright (inside container) |

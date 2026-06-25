@@ -100,3 +100,58 @@ Architecture Decision Records for Forge (formerly E2E AI Sandbox).
 - Session logs create auditable history
 - This pattern is used in production by Devin (todo tracking, context checkpoints)
 **Consequences:** Slightly more ceremony per session. Worth it for consistency and reduced hallucination.
+
+## ADR-010: Hono over Fastify for Web Framework
+
+**Date:** 2026-06-25
+**Status:** Accepted
+**Context:** ADR-005 left the web framework as "Fastify or Hono." After dependency analysis, Hono is the better fit.
+**Decision:** Hono for the agent server web framework.
+**Rationale:**
+- 14KB vs Fastify's 50KB+
+- Native WebSocket support via `@hono/node-ws`
+- Edge-compatible (Cloudflare Workers, Deno, Bun) — future-proofs deployment options
+- Growing ecosystem (22K stars), middleware for CORS, JWT, etc.
+**Consequences:** Less middleware ecosystem than Fastify, but sufficient for our needs. If we outgrow Hono, migration to Fastify is straightforward (similar API patterns).
+
+## ADR-011: CodeMirror 6 over Monaco for Editor Component
+
+**Date:** 2026-06-25
+**Status:** Accepted
+**Context:** Original choice was Monaco (VS Code's editor). After dependency analysis, CodeMirror 6 is more appropriate.
+**Decision:** CodeMirror 6 via `@uiw/react-codemirror` for the file viewer/editor panel.
+**Rationale:**
+- 5-10x smaller bundle (100KB vs 1-5MB)
+- Modular, tree-shakeable — only load what we need
+- We're building a file viewer with light editing, not a full IDE
+- Monaco is overkill for our use case
+**Consequences:** No IntelliSense or advanced IDE features. Acceptable — the agent does the coding, the UI is for viewing/reviewing.
+
+## ADR-012: Vercel AI SDK for LLM Provider Layer
+
+**Date:** 2026-06-25
+**Status:** Accepted
+**Context:** Originally planned "custom thin HTTP wrappers" for LLM integration. Vercel AI SDK provides everything we need out of the box.
+**Decision:** Use Vercel AI SDK (`ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`).
+**Rationale:**
+- Unified `streamText()` call across all providers
+- Built-in multi-step tool loop (`maxSteps` parameter)
+- Streaming-first (30ms p99 latency)
+- Zod-native tool definitions — no manual JSON Schema conversion
+- 2.8M weekly downloads, actively maintained
+- 34-60KB per provider (vs LangChain at 101KB+)
+**Consequences:** Dependency on Vercel's SDK. Risk is low — it's Apache 2.0 licensed and widely adopted. If abandoned, the provider adapters are thin enough to replace.
+
+## ADR-013: Qwen 2.5 Coder 7B as Default Local LLM
+
+**Date:** 2026-06-25
+**Status:** Accepted
+**Context:** Forge targets self-hosted users running local LLMs. Need a default model recommendation for development and testing that works well on consumer hardware (M3 Mac, 16GB RAM).
+**Decision:** Default local model: `qwen2.5-coder:7b` via Ollama. Fallback: `llama3.1:8b`.
+**Rationale:**
+- ~4.7GB RAM at Q4_K_M quantization — comfortable headroom on 16GB
+- ~40 tok/s on M3 — usable for interactive coding
+- Purpose-built for code generation (trained on code corpora)
+- Strong tool-calling/function-calling support
+- Available via `ollama pull qwen2.5-coder:7b`
+**Consequences:** Smaller model = lower quality than cloud models. Acceptable for development and self-hosted use. Users can always configure larger models or cloud providers.

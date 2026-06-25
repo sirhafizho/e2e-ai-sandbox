@@ -2,8 +2,8 @@
 
 > Self-Hostable Autonomous Coding Agent (formerly "E2E AI Sandbox")
 
-**Current Phase:** BMAD Phase 1 (Analysis) complete -> Phase 2 (Planning) ready to start
-**Last Session:** [[Session 2026-06-24]]
+**Current Phase:** Planning COMPLETE — ready to implement Sprint 1
+**Last Session:** [[Session 2026-06-25]]
 **Project Overhauled:** 2026-06-24 — expanded scope from sandbox to full autonomous agent
 
 ## Quick Links
@@ -27,9 +27,9 @@
 | Phase | Status | Key Artifacts |
 |-------|--------|---------------|
 | Analysis | Done | `docs/research-findings.md`, `docs/devin-vs-sandbox-analysis.md` |
-| Planning | Ready to start | Need `/bmad-product-brief` then `/bmad-prd` |
-| Solutioning | Not started | Need architecture + epics after PRD |
-| Implementation | Not started | After solutioning complete |
+| Planning | Done | `_bmad-output/planning-artifacts/epics-and-stories.md`, `sprint-plan.md` |
+| Solutioning | Skipped (covered by analysis) | Specs already detailed enough from overhaul |
+| Implementation | Ready — Sprint 1 | Start with Story 1.1.1 (monorepo init) |
 
 ## Specs Status
 
@@ -44,7 +44,7 @@
 
 ## Pending Decisions
 
-All major tech decisions resolved on 2026-06-24. See [[Decisions Log]] ADR-004 through ADR-009.
+All major tech decisions resolved. See [[Decisions Log]] ADR-004 through ADR-013.
 
 ## Key Reference Docs
 

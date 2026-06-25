@@ -1,7 +1,7 @@
 # Spec: Knowledge System
 
 **Status:** Draft  
-**Priority:** P1 — Cross-session intelligence and persistent memory.
+**Priority:** P2 (Phase 4) — Cross-session intelligence and persistent memory.
 
 ---
 

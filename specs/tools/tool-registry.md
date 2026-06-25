@@ -82,7 +82,7 @@ The tool registry is the single source of truth for what an agent can do. It:
 
 ---
 
-### Browser Tools
+### Browser Tools [PHASE 2+]
 
 | Tool | Description | Input | Output |
 |------|-------------|-------|--------|
@@ -104,7 +104,7 @@ The tool registry is the single source of truth for what an agent can do. It:
 
 ---
 
-### Search Tools
+### Search Tools [PHASE 2+]
 
 | Tool | Description | Input | Output |
 |------|-------------|-------|--------|
@@ -340,7 +340,7 @@ Handlers can execute inside the sandbox (via `context.container.exec()`) or outs
 
 ---
 
-## Tool Permissions (v2)
+## Tool Permissions [PHASE 2+]
 
 Tool access can be restricted on a per-session basis:
 

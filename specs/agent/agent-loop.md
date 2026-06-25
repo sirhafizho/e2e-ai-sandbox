@@ -18,6 +18,8 @@ This is Forge's beating heart. Everything else — UI, sandbox, tools — exists
 - Recover from errors gracefully
 - Keep the user informed at every step
 
+> **Implementation Note:** The LLM_GENERATE state uses Vercel AI SDK's `streamText()` function with `maxSteps` for automatic multi-step tool calling. Provider abstraction (OpenAI, Anthropic, Ollama) is handled by the AI SDK's provider adapters. Tool definitions use Zod schemas, which the AI SDK converts to the correct LLM format automatically. See `docs/open-source-dependencies.md` Layer 1 for details.
+
 ---
 
 ## Loop Structure — State Machine
@@ -135,7 +137,7 @@ When the LLM returns multiple tool calls in a single response, classify and exec
 
 This is how Forge survives long tasks without hitting token limits or losing coherence.
 
-### Token Budget Tracking
+### Token Budget Tracking [PHASE 2+]
 
 ```
 Model Context Window (e.g., 200K tokens)
@@ -154,7 +156,7 @@ Model Context Window (e.g., 200K tokens)
 | **85%** | Force-summarize all turns except last 3, truncate tool outputs |
 | **95%** | Emergency: checkpoint and reset context, resume from checkpoint |
 
-### Auto-Summarization
+### Auto-Summarization [PHASE 2+]
 
 - **Trigger:** every N turns (configurable, default: 10) OR when token usage hits 70%
 - **What gets summarized:** all turns older than the last 3
@@ -166,7 +168,7 @@ Model Context Window (e.g., 200K tokens)
   - Current state of the todo list
 - **The summary replaces the original turns** — originals are archived to session log, not kept in context
 
-### Checkpointing
+### Checkpointing [PHASE 2+]
 
 Before context overflow (at 95% threshold), save a checkpoint:
 

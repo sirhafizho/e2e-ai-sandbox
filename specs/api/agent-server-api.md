@@ -9,7 +9,7 @@
 
 The Agent Server is the orchestration layer between AI agents (LLMs) and Docker sandboxes. It exposes a REST API with WebSocket streaming for real-time tool output and UI updates. It also manages sessions, tool dispatch, knowledge injection, and the agentic loop.
 
-**Tech stack:** TypeScript (Node.js), Fastify or Hono, dockerode, SQLite.
+**Tech stack:** TypeScript (Node.js), Hono, dockerode, SQLite.
 
 **Design principles:**
 - Stateless REST for CRUD operations; stateful WebSocket for streaming
@@ -69,7 +69,7 @@ All fields are optional. If no `repo_url` or `snapshot_id` is provided, an empty
     "model": "ollama/deepseek-coder-v2",
     "container_id": null,
     "created_at": "2026-06-24T10:30:00Z",
-    "ws_url": "ws://localhost:3000/api/sessions/ses_7f3a2b/ws"
+    "ws_url": "ws://localhost:3000/ws/sessions/ses_7f3a2b"
   }
 }
 ```
@@ -231,7 +231,7 @@ Tools are **NOT** directly exposed as API endpoints to the UI. The agent loop ca
 
 ### Tool Timeout
 
-Each tool has a configurable timeout (default: 120 seconds). Long-running tools (e.g., `npm install`) can have extended timeouts. On timeout, the tool is killed and a `tool_error` event is emitted with `TOOL_TIMEOUT`.
+Each tool has a configurable timeout (default: 30 seconds). Long-running tools (e.g., `npm install`) can have extended timeouts. On timeout, the tool is killed and a `tool_error` event is emitted with `TOOL_TIMEOUT`.
 
 ---
 
@@ -239,7 +239,7 @@ Each tool has a configurable timeout (default: 120 seconds). Long-running tools 
 
 ### Connection
 
-**Endpoint:** `ws://host/api/sessions/:id/ws`
+**Endpoint:** `ws://host/ws/sessions/:id`
 
 **Connection params:** `?api_key=xxx` (when auth is enabled)
 
