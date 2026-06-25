@@ -2,8 +2,8 @@
 
 > Self-Hostable Autonomous Coding Agent (formerly "E2E AI Sandbox")
 
-**Current Phase:** Planning COMPLETE — ready to implement Sprint 1
-**Last Session:** [[Session 2026-06-25]]
+**Current Phase:** Phase 1 Implementation COMPLETE — ready for Phase 2
+**Last Session:** [[Session 2026-06-25-impl]]
 **Project Overhauled:** 2026-06-24 — expanded scope from sandbox to full autonomous agent
 
 ## Quick Links
@@ -29,7 +29,7 @@
 | Analysis | Done | `docs/research-findings.md`, `docs/devin-vs-sandbox-analysis.md` |
 | Planning | Done | `_bmad-output/planning-artifacts/epics-and-stories.md`, `sprint-plan.md` |
 | Solutioning | Skipped (covered by analysis) | Specs already detailed enough from overhaul |
-| Implementation | Ready — Sprint 1 | Start with Story 1.1.1 (monorepo init) |
+| Implementation | Phase 1 DONE (16 stories) | `forge chat` and `forge doctor` working |
 
 ## Specs Status
 
