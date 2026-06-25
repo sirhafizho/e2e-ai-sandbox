@@ -77,6 +77,27 @@ export const ErrorEvent = z.object({
 });
 export type ErrorEvent = z.infer<typeof ErrorEvent>;
 
+export const BudgetLevel = z.enum(['normal', 'warning', 'critical', 'emergency']);
+export type BudgetLevel = z.infer<typeof BudgetLevel>;
+
+export const TokenBudgetEvent = z.object({
+  type: z.literal('token_budget'),
+  level: BudgetLevel,
+  usage_ratio: z.number(),
+  used: z.number().int(),
+  remaining: z.number().int(),
+  usable_budget: z.number().int(),
+});
+export type TokenBudgetEvent = z.infer<typeof TokenBudgetEvent>;
+
+export const ContextWindowedEvent = z.object({
+  type: z.literal('context_windowed'),
+  evicted_messages: z.number().int(),
+  tokens_freed: z.number().int(),
+  new_level: BudgetLevel,
+});
+export type ContextWindowedEvent = z.infer<typeof ContextWindowedEvent>;
+
 export const ServerWebSocketEvent = z.discriminatedUnion('type', [
   GreetingEvent,
   AgentMessageEvent,
@@ -88,6 +109,8 @@ export const ServerWebSocketEvent = z.discriminatedUnion('type', [
   SessionStatusEvent,
   IdleWarningEvent,
   ErrorEvent,
+  TokenBudgetEvent,
+  ContextWindowedEvent,
 ]);
 export type ServerWebSocketEvent = z.infer<typeof ServerWebSocketEvent>;
 

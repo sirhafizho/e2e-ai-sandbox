@@ -7,7 +7,9 @@ import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register-builtins.js';
 import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
+import { TokenBudget } from '../agent/token-budget.js';
 import type { LLMProviderConfig } from '@forge/shared';
+import type { TokenBudgetData, ContextWindowedData } from '../agent/types.js';
 
 interface ChatOptions {
   model: string;
@@ -43,7 +45,9 @@ export async function runChat(initialMessage: string | undefined, options: ChatO
   };
 
   const model = createProvider(providerConfig);
-  const agentLoop = new AgentLoop(model, toolRegistry, containerManager);
+  const agentLoop = new AgentLoop(model, toolRegistry, containerManager, {
+    tokenBudget: TokenBudget.forModel(options.model),
+  });
 
   const sessionContext = {
     sessionId,
@@ -83,6 +87,23 @@ export async function runChat(initialMessage: string | undefined, options: ChatO
         case 'tool_error': {
           const data = event.data as { error: string };
           process.stdout.write(chalk.red(`  Error: ${data.error}\n`));
+          break;
+        }
+        case 'token_budget': {
+          const data = event.data as TokenBudgetData;
+          if (data.level !== 'normal') {
+            const color = data.level === 'emergency' ? chalk.red : data.level === 'critical' ? chalk.yellow : chalk.dim;
+            process.stdout.write(
+              color(`\n  [budget] ${data.level}: ${Math.round(data.usageRatio * 100)}% used (${data.used}/${data.usableBudget} tokens)\n`),
+            );
+          }
+          break;
+        }
+        case 'context_windowed': {
+          const data = event.data as ContextWindowedData;
+          process.stdout.write(
+            chalk.cyan(`\n  [windowing] Evicted ${data.evictedMessages} messages, freed ~${data.tokensFreed} tokens (now ${data.newLevel})\n`),
+          );
           break;
         }
         case 'done': {
@@ -138,6 +159,28 @@ export async function runChat(initialMessage: string | undefined, options: ChatO
     if (input.trim() === '/clear') {
       agentLoop.getHistory().clear();
       console.log(chalk.dim('\nConversation history cleared.\n'));
+      continue;
+    }
+
+    if (input.trim() === '/budget') {
+      const budget = agentLoop.getTokenBudget();
+      if (!budget) {
+        console.log(chalk.dim('\nNo token budget configured.\n'));
+      } else {
+        const status = budget.getStatus();
+        const levelColor = status.level === 'normal' ? chalk.green : status.level === 'warning' ? chalk.yellow : chalk.red;
+        console.log(chalk.dim(`\nToken Budget:`));
+        console.log(chalk.dim(`  Context window: ${status.contextWindow.toLocaleString()} tokens`));
+        console.log(chalk.dim(`  Usable budget:  ${status.usableBudget.toLocaleString()} tokens`));
+        console.log(chalk.dim(`  Used:           ${status.used.toLocaleString()} tokens (${Math.round(status.usageRatio * 100)}%)`));
+        console.log(chalk.dim(`  Remaining:      ${status.remaining.toLocaleString()} tokens`));
+        console.log(levelColor(`  Level:          ${status.level}`));
+        const history = agentLoop.getHistory();
+        if (history.hasSummary) {
+          console.log(chalk.dim(`  Context summary: active`));
+        }
+        console.log();
+      }
       continue;
     }
 

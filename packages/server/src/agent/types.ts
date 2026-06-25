@@ -1,3 +1,5 @@
+import type { BudgetLevel } from './token-budget.js';
+
 export interface SessionContext {
   sessionId: string;
   containerId: string;
@@ -11,6 +13,8 @@ export type AgentEventType =
   | 'tool_output'
   | 'tool_complete'
   | 'tool_error'
+  | 'token_budget'
+  | 'context_windowed'
   | 'done';
 
 export interface AgentEvent {
@@ -34,4 +38,18 @@ export interface ToolCompleteData {
   output: unknown;
   durationMs: number;
   isError: boolean;
+}
+
+export interface TokenBudgetData {
+  level: BudgetLevel;
+  usageRatio: number;
+  used: number;
+  remaining: number;
+  usableBudget: number;
+}
+
+export interface ContextWindowedData {
+  evictedMessages: number;
+  tokensFreed: number;
+  newLevel: BudgetLevel;
 }

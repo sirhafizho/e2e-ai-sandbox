@@ -6,6 +6,7 @@ import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register-builtins.js';
 import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
+import { TokenBudget } from '../agent/token-budget.js';
 import { createWsHandlers } from './ws-handler.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
@@ -170,7 +171,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket) {
         model: session.model,
       };
       const model = createProvider(providerConfig);
-      session.agentLoop = new AgentLoop(model, toolRegistry, containerManager);
+      session.agentLoop = new AgentLoop(model, toolRegistry, containerManager, {
+        tokenBudget: TokenBudget.forModel(session.model),
+      });
     }
 
     try {

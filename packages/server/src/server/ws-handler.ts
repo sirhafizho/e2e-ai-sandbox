@@ -2,6 +2,7 @@ import type { WSContext } from 'hono/ws';
 import type { ServerWebSocketEvent, ClientWebSocketEvent } from '@forge/shared';
 import { ClientWebSocketEvent as ClientEventSchema } from '@forge/shared';
 import { AgentLoop } from '../agent/agent-loop.js';
+import { TokenBudget } from '../agent/token-budget.js';
 import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { createProvider } from '../llm/provider.js';
@@ -97,7 +98,9 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
               model: session.model,
             };
             const model = createProvider(providerConfig);
-            session.agentLoop = new AgentLoop(model, deps.toolRegistry, deps.containerManager);
+            session.agentLoop = new AgentLoop(model, deps.toolRegistry, deps.containerManager, {
+              tokenBudget: TokenBudget.forModel(session.model),
+            });
           }
 
           session.status = 'running';
@@ -176,6 +179,38 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                     error: data.error,
                     code: 'TOOL_ERROR',
                     retrying: false,
+                  });
+                  break;
+                }
+                case 'token_budget': {
+                  const data = agentEvent.data as {
+                    level: string;
+                    usageRatio: number;
+                    used: number;
+                    remaining: number;
+                    usableBudget: number;
+                  };
+                  send(ws, {
+                    type: 'token_budget',
+                    level: data.level as 'normal' | 'warning' | 'critical' | 'emergency',
+                    usage_ratio: data.usageRatio,
+                    used: data.used,
+                    remaining: data.remaining,
+                    usable_budget: data.usableBudget,
+                  });
+                  break;
+                }
+                case 'context_windowed': {
+                  const data = agentEvent.data as {
+                    evictedMessages: number;
+                    tokensFreed: number;
+                    newLevel: string;
+                  };
+                  send(ws, {
+                    type: 'context_windowed',
+                    evicted_messages: data.evictedMessages,
+                    tokens_freed: data.tokensFreed,
+                    new_level: data.newLevel as 'normal' | 'warning' | 'critical' | 'emergency',
                   });
                   break;
                 }

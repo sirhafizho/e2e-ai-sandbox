@@ -56,7 +56,7 @@ describe('WebSocket Handler', () => {
 
   before(async () => {
     const wss = new WebSocketServer({ noServer: true });
-    const { app, sessions, containerManager } = createApp(upgradeWebSocket);
+    const { app } = createApp(upgradeWebSocket);
 
     // Find a free port
     port = 3100 + Math.floor(Math.random() * 900);
