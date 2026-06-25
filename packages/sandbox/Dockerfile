@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -30,8 +30,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Create non-root user
-RUN useradd -m -s /bin/bash -u 1000 forge
+# Create non-root user (remove ubuntu user that owns UID 1000 in 24.04)
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && useradd -m -s /bin/bash -u 1000 forge
 
 # Create workspace directory
 RUN mkdir -p /workspace && chown forge:forge /workspace

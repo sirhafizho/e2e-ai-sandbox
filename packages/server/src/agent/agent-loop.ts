@@ -1,4 +1,4 @@
-import { streamText, type LanguageModel, type ModelMessage } from 'ai';
+import { streamText, dynamicTool, isStepCount, type LanguageModel, type ModelMessage } from 'ai';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ContainerManager } from '../sandbox/container-manager.js';
 import type { SessionContext, AgentEvent } from './types.js';
@@ -32,25 +32,24 @@ export class AgentLoop {
 
     const messages: ModelMessage[] = [{ role: 'user', content: userMessage }];
 
-    // Build AI SDK tool definitions from registry
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const aiTools: Record<string, any> = {};
+    // Build AI SDK tool definitions from registry using dynamicTool()
+    // for runtime-registered tools with unknown input/output types
+    const aiTools: Record<string, ReturnType<typeof dynamicTool>> = {};
     for (const spec of toolSpecs) {
       const toolName = spec.name;
-      // Use raw tool object format compatible with AI SDK v7
-      aiTools[toolName] = {
+      aiTools[toolName] = dynamicTool({
         description: spec.description,
-        parameters: spec.inputSchema,
-        execute: async (args: { input: unknown }) => {
+        inputSchema: spec.inputSchema,
+        execute: async (input) => {
           const context = {
             containerId: sessionContext.containerId,
             sessionId: sessionContext.sessionId,
             containerManager: this.containerManager,
           };
-          const result = await this.toolRegistry.execute(toolName, args.input ?? args, context);
+          const result = await this.toolRegistry.execute(toolName, input, context);
           return result.output;
         },
-      };
+      });
     }
 
     const result = streamText({
@@ -58,9 +57,8 @@ export class AgentLoop {
       system: systemPrompt,
       messages,
       tools: aiTools,
-      maxSteps: MAX_STEPS,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      stopWhen: isStepCount(MAX_STEPS),
+    });
 
     let currentText = '';
 
