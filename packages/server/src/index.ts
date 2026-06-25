@@ -19,3 +19,5 @@ export { createProvider } from './llm/index.js';
 
 export { AgentLoop, buildSystemPrompt } from './agent/index.js';
 export type { SessionContext, AgentEvent, AgentEventType } from './agent/index.js';
+
+export { createApp, startServer } from './server/index.js';
