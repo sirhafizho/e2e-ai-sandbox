@@ -155,3 +155,27 @@ Architecture Decision Records for Forge (formerly E2E AI Sandbox).
 - Strong tool-calling/function-calling support
 - Available via `ollama pull qwen2.5-coder:7b`
 **Consequences:** Smaller model = lower quality than cloud models. Acceptable for development and self-hosted use. Users can always configure larger models or cloud providers.
+
+## ADR-014: External AI Tool Integration Strategy (Three-Tier)
+
+**Date:** 2026-06-25
+**Status:** Proposed (future epic, post-Phase 1)
+**Context:** Forge should work not only as a standalone agent but also as a **sandbox backend for external AI tools** (Copilot, Claude Code, Cursor, etc.). Key use case: user works with company-provided AI tools during the day, then Forge + local LLM picks up remaining tasks (bug fixes, small features) overnight at home — a "night shift agent" pattern.
+**Decision:** Three-tier integration strategy, each building on the last:
+
+1. **Tier 1 — Remote Dev Environment (v1):** SSH server in sandbox containers. Users connect via VS Code Remote, JetBrains Gateway, or SSH. External AI tools run inside the container transparently. Zero integration effort — just needs a working sshd in the Docker image.
+
+2. **Tier 2 — MCP Server Interface (v1.5/v2):** Forge exposes an MCP server that advertises sandbox tools (`run_command`, `read_file`, `write_file`, `browse_url`, `create_snapshot`). External AI tools that support MCP (Claude Code, Cursor, etc.) can discover and use Forge's sandbox for execution. Thin adapter over the existing REST/WebSocket tool API.
+
+3. **Tier 3 — Agent Task Delegation (v2+):** External tools delegate entire tasks to Forge's agent loop. Forge spins up a container, clones the repo, runs its own agent with a local or cloud LLM, and reports results. Full autonomy mode.
+
+**Rationale:**
+- Tier 1 requires almost no new code — SSH is standard in dev containers
+- Tier 2 leverages MCP (already noted as deferred in ADR-002) and builds directly on our existing tool execution API
+- Tier 3 is the core product itself — by the time we reach v2, the agent loop already exists
+- Each tier is independently useful and increases Forge's value as an integration layer
+**Consequences:**
+- Tier 1: Must include sshd and basic dev tooling in the base Docker image (already planned)
+- Tier 2: Need to implement an MCP server package — estimate 1 new epic with 3-4 stories
+- Tier 3: Requires a task queue / delegation API — larger effort but builds on completed agent loop
+- This positions Forge uniquely in the market: not just another coding agent, but a **sandbox-as-a-service for any AI tool**

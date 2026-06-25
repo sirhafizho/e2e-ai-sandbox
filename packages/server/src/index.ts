@@ -16,3 +16,6 @@ export type { ToolSpec, ToolHandler, ToolContext, ToolExecResult } from './tools
 export { registerBuiltinTools } from './tools/index.js';
 
 export { createProvider } from './llm/index.js';
+
+export { AgentLoop, buildSystemPrompt } from './agent/index.js';
+export type { SessionContext, AgentEvent, AgentEventType } from './agent/index.js';
