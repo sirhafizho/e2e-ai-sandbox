@@ -127,5 +127,19 @@ export const CancelEvent = z.object({
 });
 export type CancelEvent = z.infer<typeof CancelEvent>;
 
+export const TerminalInputEvent = z.object({
+  type: z.literal('terminal_input'),
+  shell_id: z.string(),
+  input: z.string(),
+});
+export type TerminalInputEvent = z.infer<typeof TerminalInputEvent>;
+
+export const TerminalResizeEvent = z.object({
+  type: z.literal('resize'),
+  cols: z.number().int().min(1),
+  rows: z.number().int().min(1),
+});
+export type TerminalResizeEvent = z.infer<typeof TerminalResizeEvent>;
+
 export const ClientWebSocketEvent = z.discriminatedUnion('type', [UserMessageEvent, CancelEvent]);
 export type ClientWebSocketEvent = z.infer<typeof ClientWebSocketEvent>;

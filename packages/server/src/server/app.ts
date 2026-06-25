@@ -8,6 +8,7 @@ import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
 import { TokenBudget } from '../agent/token-budget.js';
 import { createWsHandlers } from './ws-handler.js';
+import { createTerminalHandlers, destroySessionTerminals } from './terminal-handler.js';
 import { openDatabase, SessionStore } from '../db/index.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
@@ -177,9 +178,117 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       }
     }
 
+    // Clean up terminal sessions
+    destroySessionTerminals(id);
     sessions.delete(id);
     sessionStore.terminate(id);
     return c.json({ deleted: true });
+  });
+
+  // File access — list directory or read file content from sandbox container
+  app.get('/api/sessions/:id/files', async (c) => {
+    const id = c.req.param('id');
+    const session = sessions.get(id);
+    if (!session) {
+      return c.json({ error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } }, 404);
+    }
+
+    const path = c.req.query('path') ?? '/workspace';
+
+    try {
+      // Check if path is a file or directory
+      const typeResult = await containerManager.exec(session.containerId, `stat -c '%F' ${JSON.stringify(path)}`, {
+        timeoutMs: 5000,
+      });
+
+      if (typeResult.exitCode !== 0) {
+        return c.json({ error: { code: 'PATH_NOT_FOUND', message: `Path not found: ${path}` } }, 404);
+      }
+
+      const fileType = typeResult.stdout.trim();
+
+      if (fileType === 'directory') {
+        // List directory contents with type info
+        const lsResult = await containerManager.exec(
+          session.containerId,
+          `find ${JSON.stringify(path)} -maxdepth 1 -mindepth 1 -printf '%y %p\\n' 2>/dev/null | sort -t/ -k2`,
+          { timeoutMs: 10_000 },
+        );
+
+        const files = lsResult.stdout
+          .trim()
+          .split('\n')
+          .filter((line) => line.length > 0)
+          .map((line) => {
+            const spaceIdx = line.indexOf(' ');
+            const typeChar = line.substring(0, spaceIdx);
+            const fullPath = line.substring(spaceIdx + 1);
+            const name = fullPath.split('/').pop() ?? fullPath;
+            return {
+              name,
+              path: fullPath,
+              type: typeChar === 'd' ? ('directory' as const) : ('file' as const),
+            };
+          })
+          // Sort: directories first, then alphabetical
+          .sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+
+        // For directories, fetch their children (one level deep)
+        const filesWithChildren = await Promise.all(
+          files.map(async (f) => {
+            if (f.type === 'directory') {
+              const childResult = await containerManager.exec(
+                session.containerId,
+                `find ${JSON.stringify(f.path)} -maxdepth 1 -mindepth 1 -printf '%y %p\\n' 2>/dev/null | sort -t/ -k2`,
+                { timeoutMs: 5000 },
+              );
+              const children = childResult.stdout
+                .trim()
+                .split('\n')
+                .filter((line) => line.length > 0)
+                .map((line) => {
+                  const si = line.indexOf(' ');
+                  const tc = line.substring(0, si);
+                  const fp = line.substring(si + 1);
+                  const n = fp.split('/').pop() ?? fp;
+                  return { name: n, path: fp, type: tc === 'd' ? ('directory' as const) : ('file' as const) };
+                })
+                .sort((a, b) => {
+                  if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+                  return a.name.localeCompare(b.name);
+                });
+              return { ...f, children };
+            }
+            return f;
+          }),
+        );
+
+        return c.json({ files: filesWithChildren });
+      } else {
+        // Read file content
+        const readResult = await containerManager.exec(
+          session.containerId,
+          `cat ${JSON.stringify(path)}`,
+          { timeoutMs: 10_000 },
+        );
+
+        if (readResult.exitCode !== 0) {
+          return c.json({ error: { code: 'FILE_READ_ERROR', message: readResult.stderr || 'Failed to read file' } }, 500);
+        }
+
+        return c.json({ content: readResult.stdout });
+      }
+    } catch (err) {
+      return c.json({
+        error: {
+          code: 'EXEC_ERROR',
+          message: err instanceof Error ? err.message : 'Failed to access files',
+        },
+      }, 500);
+    }
   });
 
   // List tools
@@ -190,6 +299,41 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       category: t.category,
     }));
     return c.json({ tools });
+  });
+
+  // Get conversation history for a session
+  app.get('/api/sessions/:id/messages', (c) => {
+    const id = c.req.param('id');
+    const session = sessions.get(id);
+    const dbRow = sessionStore.get(id);
+
+    if (!session && !dbRow) {
+      return c.json({ error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } }, 404);
+    }
+
+    // If the session has a live agent loop, get messages from it
+    if (session?.agentLoop) {
+      const history = session.agentLoop.getHistory();
+      const messages = history.getMessages();
+      return c.json({
+        messages,
+        total: messages.length,
+        context_summary: history.getContextSummary(),
+      });
+    }
+
+    // Otherwise, load from the database
+    const historyJson = dbRow?.history_json ?? '[]';
+    try {
+      const messages = JSON.parse(historyJson) as unknown[];
+      return c.json({
+        messages,
+        total: messages.length,
+        context_summary: dbRow?.context_summary ?? null,
+      });
+    } catch {
+      return c.json({ messages: [], total: 0, context_summary: null });
+    }
   });
 
   // Send message (REST fallback — primary communication via WebSocket)
@@ -343,6 +487,19 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           containerManager,
           toolRegistry,
           sessionStore,
+        });
+      }),
+    );
+
+    // Terminal PTY WebSocket — interactive shell access
+    app.get(
+      '/ws/sessions/:id/terminal/:shellId',
+      upgradeWebSocket((c) => {
+        const sessionId = c.req.param('id') ?? '';
+        const shellId = c.req.param('shellId') ?? 'default';
+        return createTerminalHandlers(sessionId, shellId, {
+          sessions,
+          containerManager,
         });
       }),
     );

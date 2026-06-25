@@ -233,6 +233,56 @@ export class ContainerManager {
     }
   }
 
+  /**
+   * Create an interactive PTY shell session.
+   * Returns an object with the duplex stream and a resize method.
+   */
+  async execInteractive(
+    containerId: string,
+    options: { cols?: number; rows?: number } = {},
+  ): Promise<{
+    stream: NodeJS.ReadWriteStream;
+    resize: (cols: number, rows: number) => Promise<void>;
+    inspect: () => Promise<{ ExitCode: number | null; Running: boolean }>;
+  }> {
+    const container = this.docker.getContainer(containerId);
+
+    const exec = await container.exec({
+      Cmd: ['bash'],
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: true,
+      Env: ['TERM=xterm-256color'],
+    });
+
+    const stream = await exec.start({
+      hijack: true,
+      stdin: true,
+      Tty: true,
+    });
+
+    // Resize the PTY if dimensions provided
+    if (options.cols && options.rows) {
+      try {
+        await exec.resize({ w: options.cols, h: options.rows });
+      } catch {
+        // Resize may fail if the exec hasn't fully started yet
+      }
+    }
+
+    return {
+      stream,
+      resize: async (cols: number, rows: number) => {
+        await exec.resize({ w: cols, h: rows });
+      },
+      inspect: async () => {
+        const result = await exec.inspect();
+        return { ExitCode: result.ExitCode, Running: result.Running };
+      },
+    };
+  }
+
   async pause(containerId: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
     await container.pause();
