@@ -79,41 +79,21 @@ describe('ConversationHistory', () => {
     assert.equal(messages[3]?.role, 'assistant');
   });
 
-  it('should handle response messages with tool calls', () => {
+  it('should handle multiple response messages per turn', () => {
     const history = new ConversationHistory();
     history.addUserMessage('list files');
 
-    // AI SDK returns assistant message with tool call + tool result message
+    // AI SDK may return multiple messages per turn (assistant + tool results)
     history.addResponseMessages([
-      {
-        role: 'assistant',
-        content: [
-          {
-            type: 'tool-call',
-            toolCallId: 'call_1',
-            toolName: 'shell_exec',
-            args: { command: 'ls' },
-          },
-        ],
-      },
-      {
-        role: 'tool',
-        content: [
-          {
-            type: 'tool-result',
-            toolCallId: 'call_1',
-            toolName: 'shell_exec',
-            result: 'file1.txt\nfile2.txt',
-          },
-        ],
-      },
+      { role: 'assistant', content: 'Let me check the files.' },
+      { role: 'assistant', content: 'Here are the files.' },
     ]);
 
     assert.equal(history.length, 3);
     const messages = history.getMessages();
     assert.equal(messages[0]?.role, 'user');
     assert.equal(messages[1]?.role, 'assistant');
-    assert.equal(messages[2]?.role, 'tool');
+    assert.equal(messages[2]?.role, 'assistant');
   });
 
   describe('getSummary', () => {

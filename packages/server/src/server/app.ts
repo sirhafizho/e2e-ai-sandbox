@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import type { UpgradeWebSocket } from 'hono/ws';
 import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register-builtins.js';
 import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
+import { createWsHandlers } from './ws-handler.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 interface SessionState {
@@ -17,7 +19,7 @@ interface SessionState {
   agentLoop?: AgentLoop;
 }
 
-export function createApp() {
+export function createApp(upgradeWebSocket?: UpgradeWebSocket) {
   const app = new Hono();
   const containerManager = new ContainerManager();
   const toolRegistry = new ToolRegistry();
@@ -200,6 +202,21 @@ export function createApp() {
       );
     }
   });
+
+  // WebSocket endpoint for real-time streaming
+  if (upgradeWebSocket) {
+    app.get(
+      '/ws/sessions/:id',
+      upgradeWebSocket((c) => {
+        const sessionId = c.req.param('id') ?? '';
+        return createWsHandlers(sessionId, {
+          sessions,
+          containerManager,
+          toolRegistry,
+        });
+      }),
+    );
+  }
 
   return { app, sessions, containerManager, toolRegistry };
 }

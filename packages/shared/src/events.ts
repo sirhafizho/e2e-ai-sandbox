@@ -3,6 +3,12 @@ import { SessionStatus } from './session.js';
 
 // Server -> Client events
 
+export const GreetingEvent = z.object({
+  type: z.literal('greeting'),
+  message: z.string(),
+});
+export type GreetingEvent = z.infer<typeof GreetingEvent>;
+
 export const AgentMessageEvent = z.object({
   type: z.literal('agent_message'),
   content: z.string(),
@@ -45,6 +51,12 @@ export const ToolErrorEvent = z.object({
 });
 export type ToolErrorEvent = z.infer<typeof ToolErrorEvent>;
 
+export const TodoUpdateEvent = z.object({
+  type: z.literal('todo_update'),
+  todos: z.array(z.object({ content: z.string(), status: z.string() })),
+});
+export type TodoUpdateEvent = z.infer<typeof TodoUpdateEvent>;
+
 export const SessionStatusEvent = z.object({
   type: z.literal('session_status'),
   status: SessionStatus,
@@ -52,13 +64,30 @@ export const SessionStatusEvent = z.object({
 });
 export type SessionStatusEvent = z.infer<typeof SessionStatusEvent>;
 
+export const IdleWarningEvent = z.object({
+  type: z.literal('idle_warning'),
+  minutes_remaining: z.number(),
+});
+export type IdleWarningEvent = z.infer<typeof IdleWarningEvent>;
+
+export const ErrorEvent = z.object({
+  type: z.literal('error'),
+  code: z.string(),
+  message: z.string(),
+});
+export type ErrorEvent = z.infer<typeof ErrorEvent>;
+
 export const ServerWebSocketEvent = z.discriminatedUnion('type', [
+  GreetingEvent,
   AgentMessageEvent,
   ToolStartEvent,
   ToolOutputEvent,
   ToolCompleteEvent,
   ToolErrorEvent,
+  TodoUpdateEvent,
   SessionStatusEvent,
+  IdleWarningEvent,
+  ErrorEvent,
 ]);
 export type ServerWebSocketEvent = z.infer<typeof ServerWebSocketEvent>;
 

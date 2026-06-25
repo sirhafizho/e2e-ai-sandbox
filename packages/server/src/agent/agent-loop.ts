@@ -30,7 +30,11 @@ export class AgentLoop {
     return this.history;
   }
 
-  async *run(userMessage: string, sessionContext: SessionContext): AsyncGenerator<AgentEvent> {
+  async *run(
+    userMessage: string,
+    sessionContext: SessionContext,
+    options?: { abortSignal?: AbortSignal },
+  ): AsyncGenerator<AgentEvent> {
     const toolSpecs = this.toolRegistry.list();
     const systemPrompt =
       sessionContext.systemPrompt ??
@@ -68,6 +72,7 @@ export class AgentLoop {
       messages: this.history.getMessages(),
       tools: aiTools,
       stopWhen: isStepCount(MAX_STEPS),
+      abortSignal: options?.abortSignal,
     });
 
     let currentText = '';
