@@ -6,12 +6,15 @@ import { ConversationHistory } from './conversation-history.js';
 import { buildSystemPrompt } from './system-prompt.js';
 import { TokenBudget, type BudgetLevel } from './token-budget.js';
 import { estimateSystemTokens } from './token-estimator.js';
+import { withRetry } from './error-recovery.js';
 
 const MAX_STEPS = 25;
 
 export interface AgentLoopOptions {
   history?: ConversationHistory;
   tokenBudget?: TokenBudget;
+  /** Disable retry logic (useful for testing). */
+  disableRetry?: boolean;
 }
 
 export class AgentLoop {
@@ -20,6 +23,9 @@ export class AgentLoop {
   private containerManager: ContainerManager;
   private history: ConversationHistory;
   private tokenBudget: TokenBudget | null;
+  private disableRetry: boolean;
+  /** Queue for error recovery events emitted during tool execution callbacks. */
+  private pendingRecoveryEvents: AgentEvent[] = [];
 
   constructor(
     model: LanguageModel,
@@ -32,6 +38,7 @@ export class AgentLoop {
     this.containerManager = containerManager;
     this.history = options?.history ?? new ConversationHistory();
     this.tokenBudget = options?.tokenBudget ?? null;
+    this.disableRetry = options?.disableRetry ?? false;
   }
 
   /** Get the conversation history for inspection or persistence. */
@@ -157,7 +164,8 @@ export class AgentLoop {
     }
 
     // Build AI SDK tool definitions from registry using dynamicTool()
-    // for runtime-registered tools with unknown input/output types
+    // for runtime-registered tools with unknown input/output types.
+    // Tool execution is wrapped with retry logic for resilience.
     const aiTools: Record<string, ReturnType<typeof dynamicTool>> = {};
     for (const spec of toolSpecs) {
       const toolName = spec.name;
@@ -165,17 +173,43 @@ export class AgentLoop {
         description: spec.description,
         inputSchema: spec.inputSchema,
         execute: async (input) => {
-          const context = {
-            containerId: sessionContext.containerId,
-            sessionId: sessionContext.sessionId,
-            containerManager: this.containerManager,
+          const executeTool = async () => {
+            const context = {
+              containerId: sessionContext.containerId,
+              sessionId: sessionContext.sessionId,
+              containerManager: this.containerManager,
+            };
+            const result = await this.toolRegistry.execute(toolName, input, context);
+            return result.output;
           };
-          const result = await this.toolRegistry.execute(toolName, input, context);
-          return result.output;
+
+          if (this.disableRetry) {
+            return executeTool();
+          }
+
+          return withRetry(executeTool, {
+            onRetry: (event) => {
+              this.pendingRecoveryEvents.push({
+                type: 'tool_error',
+                data: {
+                  error: event.error,
+                  category: event.category,
+                  level: event.level,
+                  attempt: event.attempt,
+                  maxAttempts: event.maxAttempts,
+                  retrying: event.level === 'retry',
+                  delayMs: event.delayMs,
+                },
+              });
+            },
+            abortSignal: options?.abortSignal,
+          });
         },
       });
     }
 
+    // streamText() returns synchronously — errors surface during stream consumption.
+    // LLM-level retries are handled by catching stream errors and re-creating the stream.
     const result = streamText({
       model: this.model,
       system: effectiveSystemPrompt,
@@ -211,6 +245,12 @@ export class AgentLoop {
         }
 
         case 'tool-result': {
+          // Flush any recovery events from retries during tool execution
+          for (const evt of this.pendingRecoveryEvents) {
+            yield evt;
+          }
+          this.pendingRecoveryEvents = [];
+
           yield {
             type: 'tool_complete',
             data: {

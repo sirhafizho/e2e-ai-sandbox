@@ -10,6 +10,15 @@ export {
   estimateMessagesTokens,
   estimateSystemTokens,
 } from './token-estimator.js';
+export {
+  withRetry,
+  classifyError,
+  getRetryPolicy,
+  getEscalationLevel,
+  calculateRetryDelay,
+  buildErrorReport,
+} from './error-recovery.js';
+export type { ErrorCategory, EscalationLevel, RetryPolicy, ErrorRecoveryEvent } from './error-recovery.js';
 export type {
   SessionContext,
   AgentEvent,
