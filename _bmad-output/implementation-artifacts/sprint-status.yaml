@@ -1,0 +1,224 @@
+# generated: 2026-06-25
+# last_updated: 2026-06-25
+# project: e2e-ai-sandbox
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-06-25
+last_updated: 2026-06-25
+project: e2e-ai-sandbox
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # =====================================================
+  # PHASE 1: Foundation (COMPLETE)
+  # =====================================================
+
+  # Epic 1.1: Project Scaffolding
+  epic-1-1: done
+  1-1-1-initialize-pnpm-monorepo: done
+  1-1-2-configure-typescript-eslint-prettier: done
+  1-1-3-shared-types-package: done
+  epic-1-1-retrospective: optional
+
+  # Epic 1.2: Docker Sandbox
+  epic-1-2: done
+  1-2-1-forge-base-docker-image: done
+  1-2-2-container-manager: done
+  1-2-3-workspace-volume-mounting: done
+  epic-1-2-retrospective: optional
+
+  # Epic 1.3: Core Tool Registry & Tools
+  epic-1-3: done
+  1-3-1-tool-registry: done
+  1-3-2-shell-exec-tool: done
+  1-3-3-file-tools: done
+  1-3-4-search-tools: done
+  epic-1-3-retrospective: optional
+
+  # Epic 1.4: LLM Provider Layer
+  epic-1-4: done
+  1-4-1-llm-provider-with-vercel-ai-sdk: done
+  epic-1-4-retrospective: optional
+
+  # Epic 1.5: Agent Loop & Server
+  epic-1-5: done
+  1-5-1-single-turn-agent-loop: done
+  1-5-2-hono-http-server: done
+  epic-1-5-retrospective: optional
+
+  # Epic 1.6: CLI
+  epic-1-6: done
+  1-6-1-forge-chat-command: done
+  1-6-2-forge-doctor-command: done
+  epic-1-6-retrospective: optional
+
+  # Epic 1.7: Integration Testing
+  epic-1-7: done
+  1-7-1-e2e-smoke-test: done
+  epic-1-7-retrospective: optional
+
+  # =====================================================
+  # PHASE 2: Persistence & Polish
+  # =====================================================
+
+  # Epic 2.1: Multi-Turn Agent Loop & Context Management
+  epic-2-1: backlog
+  2-1-1-conversation-history-management: backlog
+  2-1-2-token-budget-tracking-and-context-windowing: backlog
+  2-1-3-todo-tracking: backlog
+  2-1-4-error-recovery-with-escalation-ladder: backlog
+  epic-2-1-retrospective: optional
+
+  # Epic 2.2: Environment Snapshots
+  epic-2-2: backlog
+  2-2-1-environment-yaml-blueprint-parser: backlog
+  2-2-2-snapshot-builder: backlog
+  2-2-3-snapshot-cli-commands: backlog
+  epic-2-2-retrospective: optional
+
+  # Epic 2.3: Session Persistence
+  epic-2-3: backlog
+  2-3-1-session-crud-with-state-persistence: backlog
+  2-3-2-idle-timeout-and-auto-cleanup: backlog
+  epic-2-3-retrospective: optional
+
+  # Epic 2.4: Git & Browser Tools
+  epic-2-4: backlog
+  2-4-1-git-tools: backlog
+  2-4-2-browser-tools: backlog
+  epic-2-4-retrospective: optional
+
+  # Epic 2.5: WebSocket Streaming Enhancements
+  epic-2-5: backlog
+  2-5-1-full-event-streaming-protocol: backlog
+  epic-2-5-retrospective: optional
+
+  # Epic 2.6: Parallel Tool Execution
+  epic-2-6: backlog
+  2-6-1-parallel-dispatch-for-independent-tool-calls: backlog
+  epic-2-6-retrospective: optional
+
+  # =====================================================
+  # PHASE 3: Web UI
+  # =====================================================
+
+  # Epic 3.1: UI Shell & Session Management
+  epic-3-1: backlog
+  3-1-1-react-vite-app-with-routing-and-layout: backlog
+  3-1-2-sessions-page: backlog
+  3-1-3-settings-page: backlog
+  epic-3-1-retrospective: optional
+
+  # Epic 3.2: Chat Panel
+  epic-3-2: backlog
+  3-2-1-streaming-markdown-chat: backlog
+  3-2-2-tool-invocation-cards: backlog
+  3-2-3-todo-list-widget: backlog
+  3-2-4-stop-cancel-button: backlog
+  epic-3-2-retrospective: optional
+
+  # Epic 3.3: Terminal Panel
+  epic-3-3: backlog
+  3-3-1-xterm-js-integration: backlog
+  3-3-2-multi-tab-shell-support: backlog
+  epic-3-3-retrospective: optional
+
+  # Epic 3.4: File Panel
+  epic-3-4: backlog
+  3-4-1-file-tree-with-react-arborist: backlog
+  3-4-2-codemirror-6-file-viewer-editor: backlog
+  epic-3-4-retrospective: optional
+
+  # Epic 3.5: Browser Panel
+  epic-3-5: backlog
+  3-5-1-screenshot-stream-display: backlog
+  epic-3-5-retrospective: optional
+
+  # =====================================================
+  # PHASE 4: Knowledge & Intelligence
+  # =====================================================
+
+  # Epic 4.1: Knowledge Notes System
+  epic-4-1: backlog
+  4-1-1-sqlite-schema-and-crud-api: backlog
+  4-1-2-auto-injection-into-agent-context: backlog
+  4-1-3-auto-suggestion-of-notes: backlog
+  epic-4-1-retrospective: optional
+
+  # Epic 4.2: Rules Loading
+  epic-4-2: backlog
+  4-2-1-auto-read-agents-md-devin-rules: backlog
+  4-2-2-inject-into-system-prompt: backlog
+  epic-4-2-retrospective: optional
+
+  # Epic 4.3: Session History & Repo Maps
+  epic-4-3: backlog
+  4-3-1-session-history-in-sqlite: backlog
+  4-3-2-repo-map-generation-via-tree-sitter: backlog
+  4-3-3-repo-map-injection-into-context: backlog
+  epic-4-3-retrospective: optional
+
+  # Epic 4.4: Advanced Context Management
+  epic-4-4: backlog
+  4-4-1-checkpointing-with-resume: backlog
+  4-4-2-selective-retention-strategies: backlog
+  epic-4-4-retrospective: optional
+
+  # Epic 4.5: Secrets & CI
+  epic-4-5: backlog
+  4-5-1-env-var-configuration-and-injection: backlog
+  4-5-2-ci-monitoring: backlog
+  epic-4-5-retrospective: optional
+
+  # =====================================================
+  # PHASE 5: Scale & Distribution
+  # =====================================================
+
+  # Epic 5.1: Docker Compose & Deployment
+  epic-5-1: backlog
+  5-1-1-docker-compose-yml: backlog
+  5-1-2-production-configuration: backlog
+  epic-5-1-retrospective: optional
+
+  # Epic 5.2: Documentation
+  epic-5-2: backlog
+  5-2-1-readme-with-quickstart: backlog
+  5-2-2-architecture-guide: backlog
+  5-2-3-tool-authoring-guide: backlog
+  5-2-4-environment-yaml-reference: backlog
+  epic-5-2-retrospective: optional
+
+  # Epic 5.3: Multi-Session & Auth
+  epic-5-3: backlog
+  5-3-1-multiple-concurrent-sessions: backlog
+  5-3-2-api-key-authentication: backlog
+  epic-5-3-retrospective: optional
+
+  # Epic 5.4: Extensibility
+  epic-5-4: backlog
+  5-4-1-plugin-system-for-custom-tools: backlog
+  5-4-2-mcp-adapter: backlog
+  5-4-3-openapi-spec-auto-generation: backlog
+  epic-5-4-retrospective: optional
