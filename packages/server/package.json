@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@forge/shared": "workspace:*",
-    "dockerode": "^5.0.1"
+    "dockerode": "^5.0.1",
+    "zod": "^4.4.3"
   }
 }

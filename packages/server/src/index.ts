@@ -10,3 +10,6 @@ export type {
   ExecOptions,
   ExecResult,
 } from './sandbox/index.js';
+
+export { ToolRegistry } from './tools/index.js';
+export type { ToolSpec, ToolHandler, ToolContext, ToolExecResult } from './tools/index.js';
