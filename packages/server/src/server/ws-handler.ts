@@ -6,6 +6,7 @@ import { TokenBudget } from '../agent/token-budget.js';
 import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { createProvider } from '../llm/provider.js';
+import type { SessionStore } from '../db/session-store.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 interface SessionState {
@@ -20,6 +21,7 @@ interface WsSessionDeps {
   sessions: Map<string, SessionState>;
   containerManager: ContainerManager;
   toolRegistry: ToolRegistry;
+  sessionStore?: SessionStore;
 }
 
 /**
@@ -214,6 +216,16 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                   });
                   break;
                 }
+                case 'todo_update': {
+                  const data = agentEvent.data as {
+                    todos: Array<{ content: string; status: string }>;
+                  };
+                  send(ws, {
+                    type: 'todo_update',
+                    todos: data.todos,
+                  });
+                  break;
+                }
                 case 'done':
                   break;
               }
@@ -236,6 +248,21 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
             session.status = 'ready';
             abortController = null;
             send(ws, { type: 'session_status', status: 'ready', info: 'Idle' });
+
+            // Persist conversation history to SQLite
+            if (deps.sessionStore && session.agentLoop) {
+              try {
+                const history = session.agentLoop.getHistory();
+                deps.sessionStore.updateHistory(
+                  session.id,
+                  JSON.stringify(history.getMessages()),
+                  history.getContextSummary(),
+                );
+                deps.sessionStore.touchActivity(session.id);
+              } catch {
+                // Best-effort persistence — don't crash the WS handler
+              }
+            }
           }
           break;
         }

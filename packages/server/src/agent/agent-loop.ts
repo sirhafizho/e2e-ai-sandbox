@@ -5,6 +5,8 @@ import type { SessionContext, AgentEvent } from './types.js';
 import { ConversationHistory } from './conversation-history.js';
 import { buildSystemPrompt } from './system-prompt.js';
 import { TokenBudget, type BudgetLevel } from './token-budget.js';
+import { TodoTracker } from './todo-tracker.js';
+import { ParallelDispatch } from './parallel-dispatch.js';
 import { estimateSystemTokens } from './token-estimator.js';
 import { withRetry } from './error-recovery.js';
 
@@ -13,6 +15,9 @@ const MAX_STEPS = 25;
 export interface AgentLoopOptions {
   history?: ConversationHistory;
   tokenBudget?: TokenBudget;
+  todoTracker?: TodoTracker;
+  /** Maximum parallel tool calls (default: 10). */
+  maxParallelToolCalls?: number;
   /** Disable retry logic (useful for testing). */
   disableRetry?: boolean;
 }
@@ -23,6 +28,8 @@ export class AgentLoop {
   private containerManager: ContainerManager;
   private history: ConversationHistory;
   private tokenBudget: TokenBudget | null;
+  private todoTracker: TodoTracker;
+  private parallelDispatch: ParallelDispatch;
   private disableRetry: boolean;
   /** Queue for error recovery events emitted during tool execution callbacks. */
   private pendingRecoveryEvents: AgentEvent[] = [];
@@ -38,6 +45,8 @@ export class AgentLoop {
     this.containerManager = containerManager;
     this.history = options?.history ?? new ConversationHistory();
     this.tokenBudget = options?.tokenBudget ?? null;
+    this.todoTracker = options?.todoTracker ?? new TodoTracker();
+    this.parallelDispatch = new ParallelDispatch(options?.maxParallelToolCalls ?? 10);
     this.disableRetry = options?.disableRetry ?? false;
   }
 
@@ -49,6 +58,11 @@ export class AgentLoop {
   /** Get the token budget tracker (null if not configured). */
   getTokenBudget(): TokenBudget | null {
     return this.tokenBudget;
+  }
+
+  /** Get the todo tracker for inspection or persistence. */
+  getTodoTracker(): TodoTracker {
+    return this.todoTracker;
   }
 
   /**
@@ -156,11 +170,15 @@ export class AgentLoop {
     // Check token budget before sending to LLM — may trigger windowing
     yield* this.handleBudgetPressure(systemPrompt, toolSpecs.length);
 
-    // Build system prompt with context summary if windowing has occurred
+    // Build system prompt with context summary and todo list
     let effectiveSystemPrompt = systemPrompt;
     const contextSummary = this.history.getContextSummary();
     if (contextSummary) {
       effectiveSystemPrompt += `\n\n## Previous Context Summary\n${contextSummary}`;
+    }
+    const todoContext = this.todoTracker.toContext();
+    if (todoContext) {
+      effectiveSystemPrompt += `\n\n${todoContext}`;
     }
 
     // Build AI SDK tool definitions from registry using dynamicTool()
@@ -173,36 +191,39 @@ export class AgentLoop {
         description: spec.description,
         inputSchema: spec.inputSchema,
         execute: async (input) => {
-          const executeTool = async () => {
-            const context = {
-              containerId: sessionContext.containerId,
-              sessionId: sessionContext.sessionId,
-              containerManager: this.containerManager,
+          // Wrap with parallel dispatch for concurrency limiting
+          return this.parallelDispatch.execute(async () => {
+            const executeTool = async () => {
+              const context = {
+                containerId: sessionContext.containerId,
+                sessionId: sessionContext.sessionId,
+                containerManager: this.containerManager,
+              };
+              const result = await this.toolRegistry.execute(toolName, input, context);
+              return result.output;
             };
-            const result = await this.toolRegistry.execute(toolName, input, context);
-            return result.output;
-          };
 
-          if (this.disableRetry) {
-            return executeTool();
-          }
+            if (this.disableRetry) {
+              return executeTool();
+            }
 
-          return withRetry(executeTool, {
-            onRetry: (event) => {
-              this.pendingRecoveryEvents.push({
-                type: 'tool_error',
-                data: {
-                  error: event.error,
-                  category: event.category,
-                  level: event.level,
-                  attempt: event.attempt,
-                  maxAttempts: event.maxAttempts,
-                  retrying: event.level === 'retry',
-                  delayMs: event.delayMs,
-                },
-              });
-            },
-            abortSignal: options?.abortSignal,
+            return withRetry(executeTool, {
+              onRetry: (event) => {
+                this.pendingRecoveryEvents.push({
+                  type: 'tool_error',
+                  data: {
+                    error: event.error,
+                    category: event.category,
+                    level: event.level,
+                    attempt: event.attempt,
+                    maxAttempts: event.maxAttempts,
+                    retrying: event.level === 'retry',
+                    delayMs: event.delayMs,
+                  },
+                });
+              },
+              abortSignal: options?.abortSignal,
+            });
           });
         },
       });

@@ -15,6 +15,7 @@ export type AgentEventType =
   | 'tool_error'
   | 'token_budget'
   | 'context_windowed'
+  | 'todo_update'
   | 'done';
 
 export interface AgentEvent {
@@ -52,4 +53,8 @@ export interface ContextWindowedData {
   evictedMessages: number;
   tokensFreed: number;
   newLevel: BudgetLevel;
+}
+
+export interface TodoUpdateData {
+  todos: Array<{ content: string; status: string }>;
 }

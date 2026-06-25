@@ -233,6 +233,16 @@ export class ContainerManager {
     }
   }
 
+  async pause(containerId: string): Promise<void> {
+    const container = this.docker.getContainer(containerId);
+    await container.pause();
+  }
+
+  async unpause(containerId: string): Promise<void> {
+    const container = this.docker.getContainer(containerId);
+    await container.unpause();
+  }
+
   async destroy(containerId: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
 

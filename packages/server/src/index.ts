@@ -21,3 +21,7 @@ export { AgentLoop, buildSystemPrompt } from './agent/index.js';
 export type { SessionContext, AgentEvent, AgentEventType } from './agent/index.js';
 
 export { createApp, startServer } from './server/index.js';
+export type { SessionState, CreateAppOptions } from './server/index.js';
+
+export { openDatabase, getDefaultDbPath, SessionStore } from './db/index.js';
+export type { SessionRow, CreateSessionInput, UpdateSessionInput } from './db/index.js';

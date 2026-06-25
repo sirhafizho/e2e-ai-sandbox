@@ -4,6 +4,9 @@ export { ConversationHistory } from './conversation-history.js';
 export { buildSystemPrompt } from './system-prompt.js';
 export { TokenBudget, getModelContextWindow } from './token-budget.js';
 export type { TokenBudgetConfig, TokenBudgetStatus, BudgetLevel } from './token-budget.js';
+export { TodoTracker } from './todo-tracker.js';
+export type { TodoItem, TodoStatus } from './todo-tracker.js';
+export { ParallelDispatch } from './parallel-dispatch.js';
 export {
   estimateStringTokens,
   estimateMessageTokens,
@@ -25,4 +28,5 @@ export type {
   AgentEventType,
   TokenBudgetData,
   ContextWindowedData,
+  TodoUpdateData,
 } from './types.js';

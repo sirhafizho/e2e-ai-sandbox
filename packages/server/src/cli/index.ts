@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { runChat } from './chat.js';
 import { runDoctor } from './doctor.js';
+import { runSessionsList, runSessionsShow, runSessionsDelete } from './sessions.js';
 
 const program = new Command();
 
@@ -22,6 +23,31 @@ program
   .description('Check system requirements')
   .action(async () => {
     await runDoctor();
+  });
+
+const sessionsCmd = program
+  .command('sessions')
+  .description('Manage persisted sessions');
+
+sessionsCmd
+  .command('list')
+  .description('List all persisted sessions')
+  .action(() => {
+    runSessionsList();
+  });
+
+sessionsCmd
+  .command('show <id>')
+  .description('Show details for a session')
+  .action((id: string) => {
+    runSessionsShow(id);
+  });
+
+sessionsCmd
+  .command('delete <id>')
+  .description('Delete a persisted session')
+  .action((id: string) => {
+    runSessionsDelete(id);
   });
 
 program.parse();
