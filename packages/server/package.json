@@ -9,9 +9,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "echo 'dev not yet configured'",
-    "lint": "echo 'lint not yet configured'",
     "typecheck": "tsc --noEmit",
-    "format": "echo 'format not yet configured'",
     "clean": "rm -rf dist"
   },
   "dependencies": {

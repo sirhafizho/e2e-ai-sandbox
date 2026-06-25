@@ -1,13 +1,16 @@
 {
   "name": "forge",
   "private": true,
+  "type": "module",
   "description": "Self-hostable autonomous coding agent",
   "scripts": {
     "build": "pnpm -r run build",
     "dev": "pnpm -r --parallel run dev",
-    "lint": "pnpm -r run lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "pnpm -r run typecheck",
-    "format": "pnpm -r run format",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "clean": "pnpm -r run clean"
   },
   "engines": {
@@ -16,6 +19,12 @@
   },
   "packageManager": "pnpm@10.33.2",
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0"
   }
 }

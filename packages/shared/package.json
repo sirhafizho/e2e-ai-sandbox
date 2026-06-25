@@ -15,9 +15,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "echo 'lint not yet configured'",
     "typecheck": "tsc --noEmit",
-    "format": "echo 'format not yet configured'",
     "clean": "rm -rf dist"
   },
   "files": [

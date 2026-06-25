@@ -1,0 +1,9 @@
+dist/
+node_modules/
+pnpm-lock.yaml
+_bmad/
+_bmad-output/
+.claude/
+.devin/
+vault/
+*.md
