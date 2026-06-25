@@ -26,6 +26,7 @@ export class ContainerManager {
     const {
       image = DEFAULT_IMAGE,
       workspacePath,
+      useVolume,
       cpuLimit = DEFAULT_CPU_LIMIT,
       memoryLimit = DEFAULT_MEMORY_LIMIT,
       pidLimit = DEFAULT_PID_LIMIT,
@@ -33,8 +34,22 @@ export class ContainerManager {
     } = options;
 
     const binds: string[] = [];
+    let volumeName: string | undefined;
+
     if (workspacePath) {
+      // Bind-mount from host
       binds.push(`${workspacePath}:/workspace`);
+    } else if (useVolume !== false) {
+      // Create a named Docker volume (default behavior)
+      volumeName = `forge-workspace-${sessionId ?? crypto.randomUUID().slice(0, 8)}`;
+      await this.docker.createVolume({
+        Name: volumeName,
+        Labels: {
+          'forge.managed': 'true',
+          ...(sessionId ? { 'forge.session': sessionId } : {}),
+        },
+      });
+      binds.push(`${volumeName}:/workspace`);
     }
 
     const container = await this.docker.createContainer({
@@ -43,6 +58,7 @@ export class ContainerManager {
       Labels: {
         'forge.managed': 'true',
         ...(sessionId ? { 'forge.session': sessionId } : {}),
+        ...(volumeName ? { 'forge.volume': volumeName } : {}),
       },
       WorkingDir: '/workspace',
       User: 'forge',
@@ -59,6 +75,9 @@ export class ContainerManager {
 
     await container.start();
 
+    // Create .forge/ metadata directory inside workspace
+    await this.exec(container.id, 'mkdir -p /workspace/.forge', { timeoutMs: 5000 });
+
     const info = await container.inspect();
 
     return {
@@ -66,6 +85,7 @@ export class ContainerManager {
       image,
       status: this.mapStatus(info.State.Status),
       createdAt: info.Created,
+      volumeName,
     };
   }
 
@@ -215,12 +235,32 @@ export class ContainerManager {
 
   async destroy(containerId: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
+
+    // Read volume name from labels before removing
+    let volumeName: string | undefined;
+    try {
+      const info = await container.inspect();
+      volumeName = info.Config.Labels['forge.volume'];
+    } catch {
+      // Container may already be gone
+    }
+
     try {
       await container.stop({ t: 5 });
     } catch {
       // Container may already be stopped
     }
     await container.remove({ force: true });
+
+    // Clean up the named volume
+    if (volumeName) {
+      try {
+        const volume = this.docker.getVolume(volumeName);
+        await volume.remove();
+      } catch {
+        // Volume may already be removed or in use
+      }
+    }
   }
 
   async getStatus(containerId: string): Promise<ContainerStatus> {

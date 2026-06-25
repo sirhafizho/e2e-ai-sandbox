@@ -1,15 +1,17 @@
 export interface CreateContainerOptions {
   /** Docker image to use (default: forge-sandbox:base) */
   image?: string;
-  /** Host path to mount as /workspace */
+  /** Host path to bind-mount as /workspace (mutually exclusive with useVolume) */
   workspacePath?: string;
+  /** Use a Docker named volume for /workspace (default: true if no workspacePath) */
+  useVolume?: boolean;
   /** CPU core limit (default: 2) */
   cpuLimit?: number;
   /** Memory limit in bytes (default: 4GB) */
   memoryLimit?: number;
   /** PID limit (default: 256) */
   pidLimit?: number;
-  /** Session ID for labeling */
+  /** Session ID for labeling and volume naming */
   sessionId?: string;
 }
 
@@ -18,6 +20,8 @@ export interface ContainerInfo {
   image: string;
   status: ContainerStatus;
   createdAt: string;
+  /** Docker volume name if using named volumes */
+  volumeName?: string;
 }
 
 export type ContainerStatus = 'created' | 'running' | 'paused' | 'stopped' | 'removed';

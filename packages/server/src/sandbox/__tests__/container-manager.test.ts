@@ -109,4 +109,47 @@ describe('ContainerManager', () => {
     const result = await manager.exec(info.containerId, 'whoami');
     assert.equal(result.stdout.trim(), 'forge');
   });
+
+  it('should create a named volume with session ID pattern', async () => {
+    const info = await manager.create({ sessionId: 'test-vol-123' });
+    containersToClean.push(info.containerId);
+
+    assert.equal(info.volumeName, 'forge-workspace-test-vol-123');
+  });
+
+  it('should create .forge/ metadata directory in workspace', async () => {
+    const info = await manager.create({ sessionId: 'test-forge-dir' });
+    containersToClean.push(info.containerId);
+
+    const result = await manager.exec(
+      info.containerId,
+      'test -d /workspace/.forge && echo "exists"',
+    );
+    assert.equal(result.stdout.trim(), 'exists');
+  });
+
+  it('should persist files in workspace volume', async () => {
+    const info = await manager.create({ sessionId: 'test-persist' });
+    containersToClean.push(info.containerId);
+
+    await manager.exec(info.containerId, 'echo "test data" > /workspace/test.txt');
+    const result = await manager.exec(info.containerId, 'cat /workspace/test.txt');
+    assert.equal(result.stdout.trim(), 'test data');
+  });
+
+  it('should clean up volume on destroy', async () => {
+    const info = await manager.create({ sessionId: 'test-cleanup' });
+    const volumeName = info.volumeName;
+    assert.ok(volumeName);
+
+    await manager.destroy(info.containerId);
+
+    // Volume should be removed — trying to inspect it should throw
+    const Docker = (await import('dockerode')).default;
+    const docker = new Docker();
+    await assert.rejects(async () => {
+      const vol = docker.getVolume(volumeName!);
+      await vol.inspect();
+    });
+  });
 });
