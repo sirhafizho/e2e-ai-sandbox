@@ -12,52 +12,14 @@ import type { ToolContext } from '../types.js';
 
 // --- Stub container manager ---
 
-function createMockExecStream(stdout: string, stderr: string, exitCode: number) {
-  return {
-    start: (_opts: unknown, cb: (err: Error | null, stream: unknown) => void) => {
-      const stdoutBuf = Buffer.from(stdout);
-      const stderrBuf = Buffer.from(stderr);
-      const chunks: Buffer[] = [];
-      if (stdoutBuf.length > 0) {
-        const header = Buffer.alloc(8);
-        header[0] = 1;
-        header.writeUInt32BE(stdoutBuf.length, 4);
-        chunks.push(Buffer.concat([header, stdoutBuf]));
-      }
-      if (stderrBuf.length > 0) {
-        const header = Buffer.alloc(8);
-        header[0] = 2;
-        header.writeUInt32BE(stderrBuf.length, 4);
-        chunks.push(Buffer.concat([header, stderrBuf]));
-      }
-      const stream = {
-        on: (event: string, handler: (...args: unknown[]) => void) => {
-          if (event === 'data') { for (const c of chunks) handler(c); }
-          if (event === 'end') { setTimeout(() => handler(), 0); }
-        },
-      };
-      cb(null, stream);
-    },
-    inspect: async () => ({ ExitCode: exitCode }),
-  };
-}
-
 function createMockContext(execResults: Array<{ stdout: string; stderr: string; exitCode: number }>): ToolContext {
   let callIndex = 0;
-  const mockContainer = {
-    id: 'test-container',
-    exec: async () => {
-      const r = execResults[callIndex] ?? { stdout: '', stderr: '', exitCode: 0 };
-      callIndex++;
-      return createMockExecStream(r.stdout, r.stderr, r.exitCode);
-    },
-  };
 
   return {
     containerId: 'test-container',
     sessionId: 'test-session',
     containerManager: {
-      exec: async (containerId: string, command: string, options?: unknown) => {
+      exec: async (_containerId: string, _command: string, _options?: unknown) => {
         const r = execResults[callIndex] ?? { stdout: '', stderr: '', exitCode: 0 };
         callIndex++;
         return { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode, durationMs: 100 };
@@ -147,7 +109,7 @@ describe('Browser Tools — handler execution', () => {
       { stdout: '{"base64_image":"iVBORw0KGgo=","width":1280,"height":720,"url":"about:blank"}', stderr: '', exitCode: 0 },
     ]);
 
-    const result = await browserScreenshotTool.handler({}, ctx);
+    const result = await browserScreenshotTool.handler({ full_page: false }, ctx);
     assert.ok(result.base64_image.length > 0);
     assert.equal(result.width, 1280);
     assert.equal(result.height, 720);
