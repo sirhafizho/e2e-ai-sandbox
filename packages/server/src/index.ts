@@ -13,3 +13,6 @@ export type {
 
 export { ToolRegistry } from './tools/index.js';
 export type { ToolSpec, ToolHandler, ToolContext, ToolExecResult } from './tools/index.js';
+export { registerBuiltinTools } from './tools/index.js';
+
+export { createProvider } from './llm/index.js';
