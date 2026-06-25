@@ -1,6 +1,4 @@
-// @forge/server — Forge agent server
-
-export { ContainerManager } from './sandbox/index.js';
+export { ContainerManager } from './container-manager.js';
 export type {
   CreateContainerOptions,
   ContainerInfo,
@@ -9,4 +7,4 @@ export type {
   HealthCheck,
   ExecOptions,
   ExecResult,
-} from './sandbox/index.js';
+} from './types.js';
