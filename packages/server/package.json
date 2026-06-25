@@ -1,0 +1,20 @@
+{
+  "name": "@forge/server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Forge agent server",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "echo 'dev not yet configured'",
+    "lint": "echo 'lint not yet configured'",
+    "typecheck": "tsc --noEmit",
+    "format": "echo 'format not yet configured'",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@forge/shared": "workspace:*"
+  }
+}

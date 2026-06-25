@@ -1,0 +1,13 @@
+{
+  "name": "@forge/sandbox",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Forge Docker sandbox image and configuration",
+  "scripts": {
+    "build": "echo 'sandbox build: use docker build'",
+    "lint": "echo 'no lintable source'",
+    "typecheck": "echo 'no TypeScript source'",
+    "format": "echo 'no formattable source'",
+    "clean": "echo 'nothing to clean'"
+  }
+}

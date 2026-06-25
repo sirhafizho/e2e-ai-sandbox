@@ -137,11 +137,11 @@ e2e-ai-sandbox/
 │   ├── research-findings.md
 │   ├── devin-vs-sandbox-analysis.md
 │   └── devin_harness_engineering.md (reference)
-├── src/                   # Implementation code (Phase 4)
-│   ├── packages/server/   # Agent server (TypeScript/Node)
-│   ├── packages/sandbox/  # Docker image + container manager
-│   ├── packages/ui/       # Web UI (React + Vite)
-│   └── packages/shared/   # Shared types and utilities
+├── packages/              # pnpm monorepo packages
+│   ├── server/            # Agent server (TypeScript/Node)
+│   ├── sandbox/           # Docker image + container manager
+│   ├── ui/                # Web UI (React + Vite)
+│   └── shared/            # Shared types and utilities
 ├── AGENTS.md              # AI agent session rules (greeting, context, protocol)
 ├── CLAUDE.md              # This file
 └── TODO.md                # Phased implementation plan
@@ -154,13 +154,13 @@ e2e-ai-sandbox/
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
 | Agent server | TypeScript (Node.js) | Best Docker SDK, great streaming, same lang as UI |
-| Web framework | Fastify or Hono | Lightweight, WebSocket support |
+| Web framework | Hono | 14KB, native WebSocket, edge-compatible |
 | UI framework | React + Vite | Widely known, fast dev cycle |
 | Terminal | xterm.js | Industry standard web terminal |
-| Code editor | Monaco | VS Code's editor |
+| Code editor | CodeMirror 6 | 5-10x smaller than Monaco, modular |
 | Database | SQLite | Zero-config, perfect for self-hosted |
 | Docker SDK | dockerode | Mature Node.js Docker client |
-| LLM integration | Custom thin wrappers | Ollama, OpenAI, Anthropic — simple HTTP APIs |
+| LLM integration | Vercel AI SDK | Unified provider interface, streaming-first, Zod-native tools |
 | Browser automation | Playwright (in container) | Industry standard, CDP support |
 | Package structure | pnpm monorepo | Shared types, atomic commits |
 | Desktop app | Web-first, Tauri later (v2) | Web works everywhere |
