@@ -12,6 +12,23 @@ import { createTerminalHandlers, destroySessionTerminals } from './terminal-hand
 import { openDatabase, SessionStore, SettingsStore } from '../db/index.js';
 import type { ServerSettings } from '../db/index.js';
 import type { LLMProviderConfig } from '@forge/shared';
+import { z } from 'zod';
+
+const SettingsUpdateSchema = z.object({
+  provider: z.object({
+    type: z.enum(['ollama', 'openai', 'anthropic', 'openai-compatible']),
+    base_url: z.string(),
+    api_key: z.string(),
+    model: z.string().min(1, 'Model name is required'),
+  }).optional(),
+  docker: z.object({
+    image: z.string().min(1, 'Image name is required'),
+    cpuLimit: z.number().int().min(1).max(64),
+    memoryLimitGb: z.number().min(0.5).max(256),
+  }).optional(),
+}).refine((data) => data.provider || data.docker, {
+  message: 'At least one of provider or docker must be provided',
+});
 
 export interface SessionState {
   id: string;
@@ -71,7 +88,19 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
 
   // Update server settings
   app.put('/api/settings', async (c) => {
-    const body = await c.req.json().catch(() => ({})) as Partial<ServerSettings>;
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parsed = SettingsUpdateSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid settings',
+          details: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+      }, 400);
+    }
+
+    const body = parsed.data as Partial<ServerSettings>;
     // If api_key is the redacted placeholder, don't overwrite the real key
     if (body.provider?.api_key === '••••••••') {
       const current = settingsStore.getAll();

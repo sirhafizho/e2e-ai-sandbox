@@ -148,4 +148,50 @@ describe('Settings API', () => {
     // Provider should be unchanged
     assert.equal(data.settings.provider.type, 'openai');
   });
+
+  it('should return 400 for invalid settings (empty body)', async () => {
+    const res = await fetch(`http://localhost:${port}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 400);
+    const data = (await res.json()) as { error: { code: string; message: string } };
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+
+  it('should return 400 for invalid provider type', async () => {
+    const res = await fetch(`http://localhost:${port}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: {
+          type: 'invalid-provider',
+          base_url: 'http://localhost',
+          api_key: '',
+          model: 'test',
+        },
+      }),
+    });
+    assert.equal(res.status, 400);
+    const data = (await res.json()) as { error: { code: string; details: Array<{ path: string }> } };
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+
+  it('should return 400 for invalid docker limits', async () => {
+    const res = await fetch(`http://localhost:${port}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        docker: {
+          image: 'test',
+          cpuLimit: 0,
+          memoryLimitGb: -1,
+        },
+      }),
+    });
+    assert.equal(res.status, 400);
+    const data = (await res.json()) as { error: { code: string } };
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
 });

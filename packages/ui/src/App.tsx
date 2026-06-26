@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { SessionsPage } from './pages/SessionsPage.js';
 import { AppLayout } from './components/layout/AppLayout.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 // Lazy-loaded pages — SessionPage pulls in CodeMirror, xterm, and other heavy deps
 const SessionPage = lazy(() => import('./pages/SessionPage.js').then((m) => ({ default: m.SessionPage })));
@@ -17,13 +18,33 @@ function PageLoader() {
 
 export function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Navigate to="/sessions" replace />} />
-        <Route path="/sessions" element={<SessionsPage />} />
-        <Route path="/sessions/:id" element={<Suspense fallback={<PageLoader />}><SessionPage /></Suspense>} />
-        <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
-      </Route>
-    </Routes>
+    <ErrorBoundary label="Application">
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Navigate to="/sessions" replace />} />
+          <Route path="/sessions" element={<SessionsPage />} />
+          <Route
+            path="/sessions/:id"
+            element={
+              <ErrorBoundary label="Session">
+                <Suspense fallback={<PageLoader />}>
+                  <SessionPage />
+                </Suspense>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ErrorBoundary label="Settings">
+                <Suspense fallback={<PageLoader />}>
+                  <SettingsPage />
+                </Suspense>
+              </ErrorBoundary>
+            }
+          />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
   );
 }

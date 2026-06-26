@@ -1,13 +1,26 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useRef, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useRef, useCallback } from 'react';
 import { WorkspaceLayout } from '../components/layout/WorkspaceLayout.js';
 import { ChatPanel } from '../components/chat/ChatPanel.js';
-import { TerminalPanel } from '../components/terminal/TerminalPanel.js';
 import { FilePanel } from '../components/files/FilePanel.js';
 import { BrowserPanel } from '../components/browser/BrowserPanel.js';
+import { ErrorBoundary } from '../components/ErrorBoundary.js';
 import { useSessionStore } from '../lib/store.js';
 import { ForgeWebSocket } from '../lib/websocket.js';
 import { api } from '../lib/api.js';
+
+// Lazy-load TerminalPanel (xterm.js ~100KB)
+const TerminalPanel = lazy(() =>
+  import('../components/terminal/TerminalPanel.js').then((m) => ({ default: m.TerminalPanel })),
+);
+
+function PanelLoader() {
+  return (
+    <div className="flex h-full items-center justify-center bg-zinc-950">
+      <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-400" />
+    </div>
+  );
+}
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>();
@@ -152,7 +165,13 @@ export function SessionPage() {
           onCancel={handleCancel}
         />
       }
-      terminalPanel={<TerminalPanel sessionId={id ?? null} />}
+      terminalPanel={
+        <ErrorBoundary label="Terminal">
+          <Suspense fallback={<PanelLoader />}>
+            <TerminalPanel sessionId={id ?? null} />
+          </Suspense>
+        </ErrorBoundary>
+      }
       browserPanel={<BrowserPanel sessionId={id ?? null} />}
       filePanel={<FilePanel sessionId={id ?? null} />}
     />
