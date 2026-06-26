@@ -1,8 +1,8 @@
-# Session — 2026-06-26 (Settings API + Code Splitting)
+# Session — 2026-06-26 (Settings API + Code Splitting + Polish)
 
 ## Summary
 
-Added server-side settings persistence, implemented code splitting for the UI, and created integration tests. All 258 tests pass (up from 246), typecheck clean, UI build clean.
+Added server-side settings persistence, implemented code splitting for the UI, created integration tests, and polished with error boundaries and Zod validation. All 261 tests pass (up from 246), typecheck clean, UI build clean.
 
 ## What Was Done
 
@@ -29,15 +29,25 @@ Added server-side settings persistence, implemented code splitting for the UI, a
 
 ### 4. Integration Tests
 - `settings-store.test.ts` — 7 tests: defaults, save/retrieve provider, save/retrieve docker, save both, partial updates, return value, persistence across SettingsStore instances
-- `settings-api.test.ts` — 5 tests: default settings on fresh DB, save + redact API key, persistence across GETs, API key redaction protection, independent docker updates
+- `settings-api.test.ts` — 8 tests: default settings on fresh DB, save + redact API key, persistence across GETs, API key redaction protection, independent docker updates, 3 validation error tests
 - Updated `database.test.ts` — schema version assertions updated to v2, added settings table check
 
+### 5. Error Boundaries
+- Created reusable `ErrorBoundary` component (class component with error UI + retry button)
+- Wraps entire app (Application level), each lazy-loaded route (Session, Settings), and TerminalPanel
+- Logs errors to console with component stack trace
+
+### 6. Zod Validation on Settings API
+- `SettingsUpdateSchema` validates provider type enum, model name required, CPU 1-64, memory 0.5-256GB
+- Returns 400 with structured error details on validation failure
+- Requires at least one of `provider` or `docker` in request body
+
 ## Test Coverage
-- **258 tests total** (was 246), all passing
+- **261 tests total** (was 246), all passing
 - Shared typecheck: clean
 - Server typecheck: clean
 - UI typecheck: clean
-- UI build: clean (code-split output)
+- UI build: clean (code-split output, no chunk warnings)
 
 ## Files Modified
 
@@ -56,13 +66,13 @@ Added server-side settings persistence, implemented code splitting for the UI, a
 | `packages/ui/src/components/files/FilePanel.tsx` | Dynamic import of CodeMirror modules |
 | `packages/ui/src/lib/api.ts` | Settings API client + types |
 | `packages/ui/src/pages/SettingsPage.tsx` | Server-backed settings, loading/saving states |
+| `packages/ui/src/components/ErrorBoundary.tsx` | **NEW** — reusable error boundary with retry UI |
+| `packages/ui/src/pages/SessionPage.tsx` | Lazy-load TerminalPanel, wrap in ErrorBoundary |
 
 ## Next Steps
 
-1. **Code splitting SessionPage further** — consider lazy-loading TerminalPanel and BrowserPanel independently
-2. **Phase 4 planning** — Knowledge & Intelligence system (SQLite knowledge notes, rules loading, session history, repo map)
-3. **Error boundaries** — add React error boundaries around lazy-loaded components
-4. **Settings validation** — Zod schema validation on the settings API endpoint
+1. **Phase 4 planning** — Knowledge & Intelligence system (SQLite knowledge notes, rules loading, session history, repo map)
+2. **Full E2E test** — Playwright test: start server + UI, create session, verify panels
 
 ## BMAD State
 - **Phase 2**: COMPLETE (13/13 stories)

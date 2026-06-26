@@ -29,7 +29,7 @@
 | Analysis | Done | `docs/research-findings.md`, `docs/devin-vs-sandbox-analysis.md` |
 | Planning | Done | `_bmad-output/planning-artifacts/epics-and-stories.md`, `sprint-plan.md` |
 | Solutioning | Skipped (covered by analysis) | Specs already detailed enough from overhaul |
-| Implementation | Phase 1 DONE (16), Phase 2 DONE (13), Phase 3 DONE (UI + integration + polish + settings API + code splitting) | 258 server tests + UI build |
+| Implementation | Phase 1 DONE (16), Phase 2 DONE (13), Phase 3 DONE (UI + integration + polish + settings + code splitting + error boundaries) | 261 server tests + UI build |
 
 ## Specs Status
 
