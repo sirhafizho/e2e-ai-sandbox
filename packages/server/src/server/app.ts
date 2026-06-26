@@ -9,9 +9,20 @@ import { AgentLoop } from '../agent/agent-loop.js';
 import { TokenBudget } from '../agent/token-budget.js';
 import { createWsHandlers } from './ws-handler.js';
 import { createTerminalHandlers, destroySessionTerminals } from './terminal-handler.js';
-import { openDatabase, SessionStore, SettingsStore } from '../db/index.js';
+import {
+  openDatabase,
+  SessionStore,
+  SettingsStore,
+  KnowledgeStore,
+  SessionHistoryStore,
+  RepoMapStore,
+  SecretsStore,
+  CheckpointStore,
+} from '../db/index.js';
 import type { ServerSettings } from '../db/index.js';
+import { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
 import type { LLMProviderConfig } from '@forge/shared';
+import { CreateKnowledgeNoteInput as CreateNoteSchema } from '@forge/shared';
 import { z } from 'zod';
 
 const SettingsUpdateSchema = z.object({
@@ -55,6 +66,19 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
   const db = openDatabase(options?.dbPath);
   const sessionStore = new SessionStore(db);
   const settingsStore = new SettingsStore(db);
+  const knowledgeStore = new KnowledgeStore(db);
+  const sessionHistoryStore = new SessionHistoryStore(db);
+  const repoMapStore = new RepoMapStore(db);
+  const secretsStore = new SecretsStore(db);
+  const checkpointStore = new CheckpointStore(db);
+
+  // Knowledge injection (combines notes, rules, history, repo map)
+  const knowledgeInjector = new KnowledgeInjector({
+    knowledgeStore,
+    sessionHistoryStore,
+    repoMapStore,
+    containerManager,
+  });
 
   // In-memory state for active sessions (runtime-only data like agentLoop)
   const sessions = new Map<string, SessionState>();
@@ -548,6 +572,136 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     }
   });
 
+  // =====================================================
+  // Knowledge Notes API
+  // =====================================================
+
+  // List knowledge notes (with optional repo and tag filters)
+  app.get('/api/knowledge/notes', (c) => {
+    const repo = c.req.query('repo');
+    const search = c.req.query('search');
+
+    let notes;
+    if (search) {
+      notes = knowledgeStore.search(repo ?? 'global', search);
+    } else if (repo) {
+      notes = knowledgeStore.listByRepo(repo);
+    } else {
+      notes = knowledgeStore.list();
+    }
+
+    // Parse tags from JSON strings for response
+    const parsed = notes.map((n) => ({
+      ...n,
+      tags: JSON.parse(n.tags) as string[],
+    }));
+
+    return c.json({ notes: parsed, total: parsed.length });
+  });
+
+  // Create a knowledge note
+  app.post('/api/knowledge/notes', async (c) => {
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parsed = CreateNoteSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid note',
+          details: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+      }, 400);
+    }
+
+    const note = knowledgeStore.create({
+      content: parsed.data.content,
+      tags: parsed.data.tags,
+      repoScope: parsed.data.repo_scope,
+      source: parsed.data.source,
+    });
+
+    return c.json({
+      note: { ...note, tags: JSON.parse(note.tags) as string[] },
+    }, 201);
+  });
+
+  // Delete a knowledge note
+  app.delete('/api/knowledge/notes/:id', (c) => {
+    const id = c.req.param('id');
+    const deleted = knowledgeStore.delete(id);
+    if (!deleted) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Note not found' } }, 404);
+    }
+    return c.json({ deleted: true });
+  });
+
+  // Get session history
+  app.get('/api/knowledge/sessions', (c) => {
+    const repo = c.req.query('repo');
+    const search = c.req.query('search');
+
+    let entries;
+    if (search) {
+      entries = sessionHistoryStore.search(search, repo ?? undefined);
+    } else if (repo) {
+      entries = sessionHistoryStore.listByRepo(repo);
+    } else {
+      entries = sessionHistoryStore.list();
+    }
+
+    const parsed = entries.map((e) => ({
+      ...e,
+      decisions_made: JSON.parse(e.decisions_made) as string[],
+      files_modified: JSON.parse(e.files_modified) as string[],
+      errors_hit: JSON.parse(e.errors_hit) as string[],
+    }));
+
+    return c.json({ sessions: parsed, total: parsed.length });
+  });
+
+  // =====================================================
+  // Secrets API
+  // =====================================================
+
+  // List secrets for a repo (values redacted)
+  app.get('/api/secrets/:repo', (c) => {
+    const repo = decodeURIComponent(c.req.param('repo'));
+    const secrets = secretsStore.listByRepo(repo);
+    const redacted = secrets.map((s) => ({
+      repo: s.repo,
+      key: s.key,
+      value: '••••••••',
+      created_at: s.created_at,
+    }));
+    return c.json({ secrets: redacted, total: redacted.length });
+  });
+
+  // Set a secret
+  app.put('/api/secrets/:repo/:key', async (c) => {
+    const repo = decodeURIComponent(c.req.param('repo'));
+    const key = c.req.param('key');
+    const body = await c.req.json().catch(() => ({}));
+    const value = (body as { value?: string }).value;
+
+    if (!value) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'value is required' } }, 400);
+    }
+
+    secretsStore.set(repo, key, value);
+    return c.json({ secret: { repo, key, value: '••••••••' } });
+  });
+
+  // Delete a secret
+  app.delete('/api/secrets/:repo/:key', (c) => {
+    const repo = decodeURIComponent(c.req.param('repo'));
+    const key = c.req.param('key');
+    const deleted = secretsStore.delete(repo, key);
+    if (!deleted) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Secret not found' } }, 404);
+    }
+    return c.json({ deleted: true });
+  });
+
   // WebSocket endpoint for real-time streaming
   if (upgradeWebSocket) {
     app.get(
@@ -578,5 +732,18 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     );
   }
 
-  return { app, sessions, containerManager, toolRegistry, sessionStore, settingsStore };
+  return {
+    app,
+    sessions,
+    containerManager,
+    toolRegistry,
+    sessionStore,
+    settingsStore,
+    knowledgeStore,
+    sessionHistoryStore,
+    repoMapStore,
+    secretsStore,
+    checkpointStore,
+    knowledgeInjector,
+  };
 }

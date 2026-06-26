@@ -40,6 +40,65 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  // v3 — Knowledge notes table
+  `
+  CREATE TABLE IF NOT EXISTS knowledge_notes (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    repo_scope TEXT NOT NULL DEFAULT 'global',
+    source TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'auto')),
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_knowledge_notes_repo ON knowledge_notes(repo_scope);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_notes_source ON knowledge_notes(source);
+  `,
+  // v4 — Session history table
+  `
+  CREATE TABLE IF NOT EXISTS session_history (
+    session_id TEXT PRIMARY KEY,
+    repo TEXT,
+    summary TEXT NOT NULL DEFAULT '',
+    decisions_made TEXT NOT NULL DEFAULT '[]',
+    files_modified TEXT NOT NULL DEFAULT '[]',
+    errors_hit TEXT NOT NULL DEFAULT '[]',
+    duration_seconds INTEGER NOT NULL DEFAULT 0,
+    model_used TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_session_history_repo ON session_history(repo);
+  `,
+  // v5 — Repo maps table
+  `
+  CREATE TABLE IF NOT EXISTS repo_maps (
+    repo TEXT PRIMARY KEY,
+    map_data TEXT NOT NULL DEFAULT '{}',
+    file_hashes TEXT NOT NULL DEFAULT '{}',
+    generated_at TEXT NOT NULL
+  );
+  `,
+  // v6 — Secrets table and checkpoints table
+  `
+  CREATE TABLE IF NOT EXISTS secrets (
+    repo TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (repo, key)
+  );
+
+  CREATE TABLE IF NOT EXISTS checkpoints (
+    checkpoint_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON checkpoints(session_id);
+  `,
 ];
 
 /**

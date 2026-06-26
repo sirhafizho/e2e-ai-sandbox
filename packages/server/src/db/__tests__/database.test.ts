@@ -18,13 +18,18 @@ describe('openDatabase', () => {
     assert.ok(tableNames.includes('sessions'), `Expected sessions table, got: ${tableNames.join(', ')}`);
     assert.ok(tableNames.includes('schema_version'), `Expected schema_version table`);
     assert.ok(tableNames.includes('settings'), `Expected settings table`);
+    assert.ok(tableNames.includes('knowledge_notes'), `Expected knowledge_notes table`);
+    assert.ok(tableNames.includes('session_history'), `Expected session_history table`);
+    assert.ok(tableNames.includes('repo_maps'), `Expected repo_maps table`);
+    assert.ok(tableNames.includes('secrets'), `Expected secrets table`);
+    assert.ok(tableNames.includes('checkpoints'), `Expected checkpoints table`);
     db.close();
   });
 
   it('should set schema version to latest', () => {
     const db = openDatabase(':memory:');
     const row = db.prepare('SELECT version FROM schema_version').get() as { version: number };
-    assert.equal(row.version, 2);
+    assert.equal(row.version, 6);
     db.close();
   });
 
@@ -40,7 +45,7 @@ describe('openDatabase', () => {
     const db1 = openDatabase(':memory:');
     // Simulate re-migration by running openDatabase on same connection
     const row1 = db1.prepare('SELECT version FROM schema_version').get() as { version: number };
-    assert.equal(row1.version, 2);
+    assert.equal(row1.version, 6);
     db1.close();
   });
 });

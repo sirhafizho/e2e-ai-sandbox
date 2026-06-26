@@ -23,8 +23,11 @@ export type { SessionContext, AgentEvent, AgentEventType } from './agent/index.j
 export { createApp, startServer } from './server/index.js';
 export type { SessionState, CreateAppOptions } from './server/index.js';
 
-export { openDatabase, getDefaultDbPath, SessionStore, SettingsStore } from './db/index.js';
-export type { SessionRow, CreateSessionInput, UpdateSessionInput, ServerSettings } from './db/index.js';
+export { openDatabase, getDefaultDbPath, SessionStore, SettingsStore, KnowledgeStore, SessionHistoryStore, RepoMapStore, SecretsStore, CheckpointStore } from './db/index.js';
+export type { SessionRow, CreateSessionInput, UpdateSessionInput, ServerSettings, KnowledgeNoteRow, CreateNoteInput, SessionHistoryRow, CreateHistoryInput, RepoMapRow, SecretRow, CheckpointRow } from './db/index.js';
+
+export { KnowledgeInjector, RulesLoader, RepoMapGenerator, NoteSuggester, CheckpointManager, SelectiveRetention, CIMonitor } from './knowledge/index.js';
+export type { KnowledgeContext, KnowledgeInjectorDeps, LoadedRule, RepoMapData, SuggestedNote, CheckpointData, RetentionPriority, CIRunStatus, CICheckResult } from './knowledge/index.js';
 
 export {
   BlueprintSchema,

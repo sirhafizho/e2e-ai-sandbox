@@ -1,0 +1,14 @@
+export { RulesLoader } from './rules-loader.js';
+export type { LoadedRule, RulesCache } from './rules-loader.js';
+export { KnowledgeInjector } from './knowledge-injector.js';
+export type { KnowledgeContext, KnowledgeInjectorDeps } from './knowledge-injector.js';
+export { RepoMapGenerator } from './repo-map-generator.js';
+export type { FileEntry, RepoMapData } from './repo-map-generator.js';
+export { NoteSuggester } from './note-suggester.js';
+export type { SuggestedNote } from './note-suggester.js';
+export { CheckpointManager } from './checkpoint-manager.js';
+export type { CheckpointData } from './checkpoint-manager.js';
+export { SelectiveRetention } from './selective-retention.js';
+export type { RetentionPriority } from './selective-retention.js';
+export { CIMonitor } from './ci-monitor.js';
+export type { CIRunStatus, CICheckResult } from './ci-monitor.js';

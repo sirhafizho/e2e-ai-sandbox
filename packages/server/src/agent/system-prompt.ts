@@ -1,5 +1,14 @@
-export function buildSystemPrompt(context: { toolNames: string[]; sessionId: string }): string {
-  return `You are Forge, an autonomous coding agent running inside a Docker sandbox.
+export interface SystemPromptContext {
+  toolNames: string[];
+  sessionId: string;
+  /** Formatted knowledge context (rules, notes, session history, repo map). */
+  knowledgeContext?: string;
+}
+
+export function buildSystemPrompt(context: SystemPromptContext): string {
+  const parts: string[] = [];
+
+  parts.push(`You are Forge, an autonomous coding agent running inside a Docker sandbox.
 
 You have access to a workspace at /workspace where you can read, write, and execute code.
 
@@ -14,5 +23,11 @@ Guidelines:
 - Create files in /workspace unless told otherwise
 - Be concise in your responses — show what you did, not verbose explanations
 
-Session: ${context.sessionId}`;
+Session: ${context.sessionId}`);
+
+  if (context.knowledgeContext) {
+    parts.push(context.knowledgeContext);
+  }
+
+  return parts.join('\n\n');
 }

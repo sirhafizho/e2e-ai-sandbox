@@ -1,5 +1,5 @@
 # generated: 2026-06-25
-# last_updated: 2026-06-25-d
+# last_updated: 2026-06-26-e
 # project: e2e-ai-sandbox
 # project_key: NOKEY
 # tracking_system: file-system
@@ -157,39 +157,39 @@ development_status:
   epic-3-5-retrospective: optional
 
   # =====================================================
-  # PHASE 4: Knowledge & Intelligence
+  # PHASE 4: Knowledge & Intelligence (COMPLETE)
   # =====================================================
 
   # Epic 4.1: Knowledge Notes System
-  epic-4-1: backlog
-  4-1-1-sqlite-schema-and-crud-api: backlog
-  4-1-2-auto-injection-into-agent-context: backlog
-  4-1-3-auto-suggestion-of-notes: backlog
+  epic-4-1: done
+  4-1-1-sqlite-schema-and-crud-api: done
+  4-1-2-auto-injection-into-agent-context: done
+  4-1-3-auto-suggestion-of-notes: done
   epic-4-1-retrospective: optional
 
   # Epic 4.2: Rules Loading
-  epic-4-2: backlog
-  4-2-1-auto-read-agents-md-devin-rules: backlog
-  4-2-2-inject-into-system-prompt: backlog
+  epic-4-2: done
+  4-2-1-auto-read-agents-md-devin-rules: done
+  4-2-2-inject-into-system-prompt: done
   epic-4-2-retrospective: optional
 
   # Epic 4.3: Session History & Repo Maps
-  epic-4-3: backlog
-  4-3-1-session-history-in-sqlite: backlog
-  4-3-2-repo-map-generation-via-tree-sitter: backlog
-  4-3-3-repo-map-injection-into-context: backlog
+  epic-4-3: done
+  4-3-1-session-history-in-sqlite: done
+  4-3-2-repo-map-generation-via-regex: done
+  4-3-3-repo-map-injection-into-context: done
   epic-4-3-retrospective: optional
 
   # Epic 4.4: Advanced Context Management
-  epic-4-4: backlog
-  4-4-1-checkpointing-with-resume: backlog
-  4-4-2-selective-retention-strategies: backlog
+  epic-4-4: done
+  4-4-1-checkpointing-with-resume: done
+  4-4-2-selective-retention-strategies: done
   epic-4-4-retrospective: optional
 
   # Epic 4.5: Secrets & CI
-  epic-4-5: backlog
-  4-5-1-env-var-configuration-and-injection: backlog
-  4-5-2-ci-monitoring: backlog
+  epic-4-5: done
+  4-5-1-env-var-configuration-and-injection: done
+  4-5-2-ci-monitoring: done
   epic-4-5-retrospective: optional
 
   # =====================================================
