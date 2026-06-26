@@ -9,7 +9,8 @@ import { AgentLoop } from '../agent/agent-loop.js';
 import { TokenBudget } from '../agent/token-budget.js';
 import { createWsHandlers } from './ws-handler.js';
 import { createTerminalHandlers, destroySessionTerminals } from './terminal-handler.js';
-import { openDatabase, SessionStore } from '../db/index.js';
+import { openDatabase, SessionStore, SettingsStore } from '../db/index.js';
+import type { ServerSettings } from '../db/index.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 export interface SessionState {
@@ -36,6 +37,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
   // Persistent storage
   const db = openDatabase(options?.dbPath);
   const sessionStore = new SessionStore(db);
+  const settingsStore = new SettingsStore(db);
 
   // In-memory state for active sessions (runtime-only data like agentLoop)
   const sessions = new Map<string, SessionState>();
@@ -53,15 +55,53 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     });
   });
 
+  // Get server settings
+  app.get('/api/settings', (c) => {
+    const settings = settingsStore.getAll();
+    // Redact API key in responses — send masked version
+    const redacted = {
+      ...settings,
+      provider: {
+        ...settings.provider,
+        api_key: settings.provider.api_key ? '••••••••' : '',
+      },
+    };
+    return c.json({ settings: redacted });
+  });
+
+  // Update server settings
+  app.put('/api/settings', async (c) => {
+    const body = await c.req.json().catch(() => ({})) as Partial<ServerSettings>;
+    // If api_key is the redacted placeholder, don't overwrite the real key
+    if (body.provider?.api_key === '••••••••') {
+      const current = settingsStore.getAll();
+      body.provider.api_key = current.provider.api_key;
+    }
+    const updated = settingsStore.saveAll(body);
+    return c.json({
+      settings: {
+        ...updated,
+        provider: {
+          ...updated.provider,
+          api_key: updated.provider.api_key ? '••••••••' : '',
+        },
+      },
+    });
+  });
+
   // Create session
   app.post('/api/sessions', async (c) => {
     const body = await c.req.json().catch(() => ({}));
-    const model = (body as { model?: string }).model ?? 'qwen2.5-coder:7b';
+    const serverSettings = settingsStore.getAll();
+    const model = (body as { model?: string }).model ?? serverSettings.provider.model;
     const sessionId = `ses_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       const containerInfo = await containerManager.create({
         sessionId,
+        image: serverSettings.docker.image !== 'forge-sandbox:base' ? serverSettings.docker.image : undefined,
+        cpuLimit: serverSettings.docker.cpuLimit,
+        memoryLimit: serverSettings.docker.memoryLimitGb * 1024 * 1024 * 1024,
       });
 
       // Run health check
@@ -360,8 +400,11 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
 
     // Lazily create agent loop per session (preserves conversation history)
     if (!session.agentLoop) {
+      const settings = settingsStore.getAll();
       const providerConfig: LLMProviderConfig = {
-        type: 'ollama',
+        type: settings.provider.type,
+        base_url: settings.provider.base_url || undefined,
+        api_key: settings.provider.api_key || undefined,
         model: session.model,
       };
       const model = createProvider(providerConfig);
@@ -487,6 +530,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           containerManager,
           toolRegistry,
           sessionStore,
+          settingsStore,
         });
       }),
     );
@@ -505,5 +549,5 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     );
   }
 
-  return { app, sessions, containerManager, toolRegistry, sessionStore };
+  return { app, sessions, containerManager, toolRegistry, sessionStore, settingsStore };
 }

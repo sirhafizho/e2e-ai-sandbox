@@ -1,60 +1,51 @@
-import { useState, useCallback } from 'react';
-import { Settings, Save, TestTube, Check, X, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Save, TestTube, Check, X, Loader2 } from 'lucide-react';
+import { api } from '../lib/api.js';
+import type { ProviderSettings, DockerSettings } from '../lib/api.js';
 
-interface ProviderConfig {
-  type: 'ollama' | 'openai' | 'anthropic' | 'openai-compatible';
-  base_url: string;
-  api_key: string;
-  model: string;
-}
-
-interface DockerConfig {
-  image: string;
-  cpuLimit: number;
-  memoryLimitGb: number;
-}
-
-const DEFAULT_PROVIDER: ProviderConfig = {
+const DEFAULT_PROVIDER: ProviderSettings = {
   type: 'ollama',
   base_url: 'http://localhost:11434',
   api_key: '',
   model: 'qwen2.5-coder:7b',
 };
 
-const DEFAULT_DOCKER: DockerConfig = {
+const DEFAULT_DOCKER: DockerSettings = {
   image: 'forge-sandbox:base',
   cpuLimit: 2,
   memoryLimitGb: 4,
 };
 
-const PROVIDER_DEFAULTS: Record<ProviderConfig['type'], { base_url: string; model: string }> = {
+const PROVIDER_DEFAULTS: Record<ProviderSettings['type'], { base_url: string; model: string }> = {
   ollama: { base_url: 'http://localhost:11434', model: 'qwen2.5-coder:7b' },
   openai: { base_url: 'https://api.openai.com/v1', model: 'gpt-4o' },
   anthropic: { base_url: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514' },
   'openai-compatible': { base_url: '', model: '' },
 };
 
-function loadSettings<T>(key: string, defaults: T): T {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? { ...defaults, ...JSON.parse(saved) as Partial<T> } : defaults;
-  } catch {
-    return defaults;
-  }
-}
-
 export function SettingsPage() {
-  const [provider, setProvider] = useState<ProviderConfig>(() =>
-    loadSettings('forge:provider', DEFAULT_PROVIDER),
-  );
-  const [docker, setDocker] = useState<DockerConfig>(() =>
-    loadSettings('forge:docker', DEFAULT_DOCKER),
-  );
+  const [provider, setProvider] = useState<ProviderSettings>(DEFAULT_PROVIDER);
+  const [docker, setDocker] = useState<DockerSettings>(DEFAULT_DOCKER);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  const handleProviderTypeChange = useCallback((type: ProviderConfig['type']) => {
+  // Load settings from server on mount
+  useEffect(() => {
+    api.settings.get()
+      .then((res) => {
+        setProvider(res.settings.provider);
+        setDocker(res.settings.docker);
+      })
+      .catch(() => {
+        // Server may not be available — use defaults
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleProviderTypeChange = useCallback((type: ProviderSettings['type']) => {
     const defaults = PROVIDER_DEFAULTS[type];
     setProvider((prev) => ({
       ...prev,
@@ -64,11 +55,19 @@ export function SettingsPage() {
     }));
   }, []);
 
-  const handleSave = useCallback(() => {
-    localStorage.setItem('forge:provider', JSON.stringify(provider));
-    localStorage.setItem('forge:docker', JSON.stringify(docker));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const res = await api.settings.update({ provider, docker });
+      setProvider(res.settings.provider);
+      setDocker(res.settings.docker);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setTestResult({ ok: false, message: 'Failed to save settings' });
+    } finally {
+      setSaving(false);
+    }
   }, [provider, docker]);
 
   const handleTestConnection = useCallback(async () => {
@@ -96,6 +95,12 @@ export function SettingsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+            <span className="ml-2 text-sm text-zinc-500">Loading settings...</span>
+          </div>
+        ) : (
         <div className="mx-auto max-w-2xl space-y-8">
           {/* LLM Provider Section */}
           <section>
@@ -105,7 +110,7 @@ export function SettingsPage() {
                 <label className="mb-1 block text-xs font-medium text-zinc-400">Provider Type</label>
                 <select
                   value={provider.type}
-                  onChange={(e) => handleProviderTypeChange(e.target.value as ProviderConfig['type'])}
+                  onChange={(e) => handleProviderTypeChange(e.target.value as ProviderSettings['type'])}
                   className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-blue-500 focus:outline-none"
                 >
                   <option value="ollama">Ollama (Local)</option>
@@ -197,10 +202,11 @@ export function SettingsPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors disabled:opacity-50"
             >
-              {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              {saved ? 'Saved' : 'Save Settings'}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+              {saving ? 'Saving...' : saved ? 'Saved' : 'Save Settings'}
             </button>
 
             <button
@@ -220,6 +226,7 @@ export function SettingsPage() {
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

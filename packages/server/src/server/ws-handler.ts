@@ -7,6 +7,7 @@ import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { createProvider } from '../llm/provider.js';
 import type { SessionStore } from '../db/session-store.js';
+import type { SettingsStore } from '../db/settings-store.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 interface SessionState {
@@ -22,6 +23,7 @@ interface WsSessionDeps {
   containerManager: ContainerManager;
   toolRegistry: ToolRegistry;
   sessionStore?: SessionStore;
+  settingsStore?: SettingsStore;
 }
 
 /**
@@ -95,8 +97,11 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
 
           // Lazily create agent loop
           if (!session.agentLoop) {
+            const settings = deps.settingsStore?.getAll();
             const providerConfig: LLMProviderConfig = {
-              type: 'ollama',
+              type: settings?.provider.type ?? 'ollama',
+              base_url: settings?.provider.base_url || undefined,
+              api_key: settings?.provider.api_key || undefined,
               model: session.model,
             };
             const model = createProvider(providerConfig);

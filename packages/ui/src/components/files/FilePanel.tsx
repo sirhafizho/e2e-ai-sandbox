@@ -1,14 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FolderTree, File, Folder, FolderOpen, ChevronRight, ChevronDown, RefreshCw } from 'lucide-react';
-import { EditorView } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { javascript } from '@codemirror/lang-javascript';
-import { json } from '@codemirror/lang-json';
-import { python } from '@codemirror/lang-python';
-import { html } from '@codemirror/lang-html';
-import { css } from '@codemirror/lang-css';
-import { markdown } from '@codemirror/lang-markdown';
+import type { EditorView } from '@codemirror/view';
+import type { Extension } from '@codemirror/state';
 
 interface FilePanelProps {
   sessionId: string | null;
@@ -21,23 +14,41 @@ interface FileNode {
   children?: FileNode[];
 }
 
-function getLanguageExtension(filePath: string) {
+/**
+ * Dynamically import the CodeMirror language extension for a file.
+ * Each language pack is loaded only when first needed.
+ */
+async function getLanguageExtension(filePath: string): Promise<Extension | null> {
   const ext = filePath.split('.').pop()?.toLowerCase();
   switch (ext) {
-    case 'js': case 'jsx': case 'mjs': case 'cjs':
+    case 'js': case 'jsx': case 'mjs': case 'cjs': {
+      const { javascript } = await import('@codemirror/lang-javascript');
       return javascript();
-    case 'ts': case 'tsx': case 'mts': case 'cts':
+    }
+    case 'ts': case 'tsx': case 'mts': case 'cts': {
+      const { javascript } = await import('@codemirror/lang-javascript');
       return javascript({ typescript: true, jsx: ext.includes('x') });
-    case 'json': case 'jsonc':
+    }
+    case 'json': case 'jsonc': {
+      const { json } = await import('@codemirror/lang-json');
       return json();
-    case 'py':
+    }
+    case 'py': {
+      const { python } = await import('@codemirror/lang-python');
       return python();
-    case 'html': case 'htm': case 'svg':
+    }
+    case 'html': case 'htm': case 'svg': {
+      const { html } = await import('@codemirror/lang-html');
       return html();
-    case 'css': case 'scss':
+    }
+    case 'css': case 'scss': {
+      const { css } = await import('@codemirror/lang-css');
       return css();
-    case 'md': case 'mdx':
+    }
+    case 'md': case 'mdx': {
+      const { markdown } = await import('@codemirror/lang-markdown');
       return markdown();
+    }
     default:
       return null;
   }
@@ -97,40 +108,52 @@ export function FilePanel({ sessionId }: FilePanelProps) {
   useEffect(() => {
     if (!editorRef.current || !selectedFile || loading) return;
 
+    let cancelled = false;
+
     // Destroy previous editor
     if (viewRef.current) {
       viewRef.current.destroy();
       viewRef.current = null;
     }
 
-    const extensions = [
-      EditorView.editable.of(false),
-      EditorState.readOnly.of(true),
-      oneDark,
-      EditorView.lineWrapping,
-      EditorView.theme({
-        '&': { height: '100%', fontSize: '12px' },
-        '.cm-scroller': { overflow: 'auto', fontFamily: '"JetBrains Mono", "Fira Code", monospace' },
-        '.cm-gutters': { backgroundColor: '#09090b', borderRight: '1px solid #27272a' },
-        '.cm-activeLineGutter': { backgroundColor: 'transparent' },
-        '.cm-content': { padding: '8px 0' },
-      }),
-    ];
+    // Dynamically import CodeMirror core + theme, then create editor
+    (async () => {
+      const [
+        { EditorView: EV },
+        { EditorState: ES },
+        { oneDark },
+        langExt,
+      ] = await Promise.all([
+        import('@codemirror/view'),
+        import('@codemirror/state'),
+        import('@codemirror/theme-one-dark'),
+        getLanguageExtension(selectedFile),
+      ]);
 
-    const langExt = getLanguageExtension(selectedFile);
-    if (langExt) extensions.push(langExt);
+      if (cancelled || !editorRef.current) return;
 
-    const state = EditorState.create({
-      doc: fileContent,
-      extensions,
-    });
+      const extensions = [
+        EV.editable.of(false),
+        ES.readOnly.of(true),
+        oneDark,
+        EV.lineWrapping,
+        EV.theme({
+          '&': { height: '100%', fontSize: '12px' },
+          '.cm-scroller': { overflow: 'auto', fontFamily: '"JetBrains Mono", "Fira Code", monospace' },
+          '.cm-gutters': { backgroundColor: '#09090b', borderRight: '1px solid #27272a' },
+          '.cm-activeLineGutter': { backgroundColor: 'transparent' },
+          '.cm-content': { padding: '8px 0' },
+        }),
+      ];
 
-    viewRef.current = new EditorView({
-      state,
-      parent: editorRef.current,
-    });
+      if (langExt) extensions.push(langExt);
+
+      const state = ES.create({ doc: fileContent, extensions });
+      viewRef.current = new EV({ state, parent: editorRef.current });
+    })();
 
     return () => {
+      cancelled = true;
       if (viewRef.current) {
         viewRef.current.destroy();
         viewRef.current = null;

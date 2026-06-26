@@ -36,6 +36,24 @@ export interface MessageHistoryResponse {
   context_summary: string | null;
 }
 
+export interface ProviderSettings {
+  type: 'ollama' | 'openai' | 'anthropic' | 'openai-compatible';
+  base_url: string;
+  api_key: string;
+  model: string;
+}
+
+export interface DockerSettings {
+  image: string;
+  cpuLimit: number;
+  memoryLimitGb: number;
+}
+
+export interface ServerSettings {
+  provider: ProviderSettings;
+  docker: DockerSettings;
+}
+
 export const api = {
   sessions: {
     list: () => request<SessionInfo[]>('/sessions'),
@@ -51,6 +69,14 @@ export const api = {
       request<SessionInfo>(`/sessions/${id}/resume`, { method: 'POST' }),
     messages: (id: string) =>
       request<MessageHistoryResponse>(`/sessions/${id}/messages`),
+  },
+  settings: {
+    get: () => request<{ settings: ServerSettings }>('/settings'),
+    update: (settings: Partial<ServerSettings>) =>
+      request<{ settings: ServerSettings }>('/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      }),
   },
   health: () => request<{ status: string }>('/health'),
 };

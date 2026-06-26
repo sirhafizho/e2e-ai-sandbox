@@ -10,8 +10,6 @@ import os from 'node:os';
  * In tests, use :memory: for isolation.
  */
 
-const SCHEMA_VERSION = 1;
-
 const MIGRATIONS: string[] = [
   // v1 — Initial schema
   `
@@ -32,7 +30,15 @@ const MIGRATIONS: string[] = [
     version INTEGER NOT NULL
   );
 
-  INSERT INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+  INSERT INTO schema_version (version) VALUES (1);
+  `,
+  // v2 — Settings table (key-value store for server configuration)
+  `
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
   `,
 ];
 
@@ -71,16 +77,18 @@ function applyMigrations(db: Database.Database): void {
     .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'`)
     .get() as { name: string } | undefined;
 
-  if (!tableExists) {
-    // Fresh database — apply all migrations
-    db.exec(MIGRATIONS[0]!);
-    return;
-  }
+  let currentVersion = 0;
 
-  const row = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
-    | { version: number }
-    | undefined;
-  const currentVersion = row?.version ?? 0;
+  if (!tableExists) {
+    // Fresh database — apply initial migration (creates schema_version table)
+    db.exec(MIGRATIONS[0]!);
+    currentVersion = 1;
+  } else {
+    const row = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
+      | { version: number }
+      | undefined;
+    currentVersion = row?.version ?? 0;
+  }
 
   // Apply any newer migrations
   for (let i = currentVersion; i < MIGRATIONS.length; i++) {
