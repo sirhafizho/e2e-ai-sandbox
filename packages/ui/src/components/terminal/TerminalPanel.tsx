@@ -76,9 +76,13 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       }
     });
 
-    // Handle resize
+    // Handle resize — refit terminal and send dimensions to server
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
+      const { cols, rows } = term;
+      if (ws.readyState === WebSocket.OPEN && cols > 0 && rows > 0) {
+        ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+      }
     });
     resizeObserver.observe(termRef.current);
 

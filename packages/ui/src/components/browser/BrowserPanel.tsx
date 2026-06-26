@@ -1,21 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Globe, RefreshCw, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useSessionStore } from '../../lib/store.js';
 
 interface BrowserPanelProps {
   sessionId: string | null;
 }
 
 export function BrowserPanel({ sessionId }: BrowserPanelProps) {
-  const [screenshot, setScreenshot] = useState<string | null>(null);
-  const [currentUrl, setCurrentUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // Listen for browser_screenshot events via the session WebSocket
-  // This will be connected to the main session WebSocket in a future integration
-  useEffect(() => {
-    if (!sessionId) return;
-    // Placeholder: screenshots will be pushed via WebSocket events
-  }, [sessionId]);
+  const screenshot = useSessionStore((s) => s.browserScreenshot);
+  const currentUrl = useSessionStore((s) => s.browserUrl);
+  const [loading] = useState(false);
 
   if (!sessionId) {
     return (

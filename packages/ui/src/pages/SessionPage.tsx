@@ -7,11 +7,12 @@ import { FilePanel } from '../components/files/FilePanel.js';
 import { BrowserPanel } from '../components/browser/BrowserPanel.js';
 import { useSessionStore } from '../lib/store.js';
 import { ForgeWebSocket } from '../lib/websocket.js';
+import { api } from '../lib/api.js';
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const wsRef = useRef<ForgeWebSocket | null>(null);
-  const { setSessionId, addMessage, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, clearSession } =
+  const { setSessionId, addMessage, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession } =
     useSessionStore();
 
   const handleSendMessage = useCallback(
@@ -111,6 +112,29 @@ export function SessionPage() {
       setStatus(data.status as string);
     });
 
+    ws.on('browser_screenshot', (data) => {
+      setBrowserScreenshot(
+        (data.screenshot as string) ?? null,
+        data.url as string | undefined,
+      );
+    });
+
+    // Load persisted message history before connecting WebSocket
+    api.sessions.messages(id).then((res) => {
+      if (res.messages.length > 0) {
+        setMessages(
+          res.messages.map((m) => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            timestamp: m.timestamp,
+          })),
+        );
+      }
+    }).catch(() => {
+      // History may not be available — that's fine
+    });
+
     ws.connect();
 
     return () => {
@@ -118,7 +142,7 @@ export function SessionPage() {
       wsRef.current = null;
       clearSession();
     };
-  }, [id, setSessionId, addMessage, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, clearSession]);
+  }, [id, setSessionId, addMessage, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession]);
 
   return (
     <WorkspaceLayout

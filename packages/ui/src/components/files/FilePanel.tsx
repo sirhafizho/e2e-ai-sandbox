@@ -1,5 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { FolderTree, File, Folder, FolderOpen, ChevronRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { EditorView } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { javascript } from '@codemirror/lang-javascript';
+import { json } from '@codemirror/lang-json';
+import { python } from '@codemirror/lang-python';
+import { html } from '@codemirror/lang-html';
+import { css } from '@codemirror/lang-css';
+import { markdown } from '@codemirror/lang-markdown';
 
 interface FilePanelProps {
   sessionId: string | null;
@@ -12,11 +21,35 @@ interface FileNode {
   children?: FileNode[];
 }
 
+function getLanguageExtension(filePath: string) {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'js': case 'jsx': case 'mjs': case 'cjs':
+      return javascript();
+    case 'ts': case 'tsx': case 'mts': case 'cts':
+      return javascript({ typescript: true, jsx: ext.includes('x') });
+    case 'json': case 'jsonc':
+      return json();
+    case 'py':
+      return python();
+    case 'html': case 'htm': case 'svg':
+      return html();
+    case 'css': case 'scss':
+      return css();
+    case 'md': case 'mdx':
+      return markdown();
+    default:
+      return null;
+  }
+}
+
 export function FilePanel({ sessionId }: FilePanelProps) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
 
   const fetchDirectory = async (path: string) => {
     if (!sessionId) return;
@@ -49,16 +82,61 @@ export function FilePanel({ sessionId }: FilePanelProps) {
     }
   };
 
-  const loadRoot = async () => {
+  const loadRoot = useCallback(async () => {
     const files = await fetchDirectory('/workspace');
     setTree(files ?? []);
-  };
+  }, [sessionId]);
 
   useEffect(() => {
     if (sessionId) {
       loadRoot();
     }
-  }, [sessionId]);
+  }, [sessionId, loadRoot]);
+
+  // Create/update CodeMirror editor when file content changes
+  useEffect(() => {
+    if (!editorRef.current || !selectedFile || loading) return;
+
+    // Destroy previous editor
+    if (viewRef.current) {
+      viewRef.current.destroy();
+      viewRef.current = null;
+    }
+
+    const extensions = [
+      EditorView.editable.of(false),
+      EditorState.readOnly.of(true),
+      oneDark,
+      EditorView.lineWrapping,
+      EditorView.theme({
+        '&': { height: '100%', fontSize: '12px' },
+        '.cm-scroller': { overflow: 'auto', fontFamily: '"JetBrains Mono", "Fira Code", monospace' },
+        '.cm-gutters': { backgroundColor: '#09090b', borderRight: '1px solid #27272a' },
+        '.cm-activeLineGutter': { backgroundColor: 'transparent' },
+        '.cm-content': { padding: '8px 0' },
+      }),
+    ];
+
+    const langExt = getLanguageExtension(selectedFile);
+    if (langExt) extensions.push(langExt);
+
+    const state = EditorState.create({
+      doc: fileContent,
+      extensions,
+    });
+
+    viewRef.current = new EditorView({
+      state,
+      parent: editorRef.current,
+    });
+
+    return () => {
+      if (viewRef.current) {
+        viewRef.current.destroy();
+        viewRef.current = null;
+      }
+    };
+  }, [fileContent, selectedFile, loading]);
 
   if (!sessionId) {
     return (
@@ -105,15 +183,19 @@ export function FilePanel({ sessionId }: FilePanelProps) {
         </div>
 
         {/* Viewer */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-hidden">
           {selectedFile ? (
-            <div className="h-full">
+            <div className="flex h-full flex-col">
               <div className="border-b border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400">
                 {selectedFile}
               </div>
-              <pre className="p-4 text-xs text-zinc-300 font-mono leading-relaxed">
-                {loading ? 'Loading...' : fileContent}
-              </pre>
+              {loading ? (
+                <div className="flex flex-1 items-center justify-center text-xs text-zinc-600">
+                  Loading...
+                </div>
+              ) : (
+                <div ref={editorRef} className="flex-1 overflow-hidden" />
+              )}
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-zinc-600">

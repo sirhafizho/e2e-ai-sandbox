@@ -30,16 +30,20 @@ interface SessionState {
   toolCalls: Map<string, ToolCall>;
   todos: TodoItem[];
   isAgentWorking: boolean;
+  browserScreenshot: string | null;
+  browserUrl: string;
 
   // Actions
   setSessionId: (id: string | null) => void;
   setStatus: (status: string) => void;
   addMessage: (msg: ChatMessage) => void;
+  setMessages: (msgs: ChatMessage[]) => void;
   updateLastMessage: (content: string) => void;
   setToolCall: (call: ToolCall) => void;
   updateToolCall: (callId: string, update: Partial<ToolCall>) => void;
   setTodos: (todos: TodoItem[]) => void;
   setAgentWorking: (working: boolean) => void;
+  setBrowserScreenshot: (screenshot: string | null, url?: string) => void;
   clearSession: () => void;
 }
 
@@ -50,12 +54,16 @@ export const useSessionStore = create<SessionState>((set) => ({
   toolCalls: new Map(),
   todos: [],
   isAgentWorking: false,
+  browserScreenshot: null,
+  browserUrl: '',
 
   setSessionId: (id) => set({ sessionId: id }),
   setStatus: (status) => set({ status }),
 
   addMessage: (msg) =>
     set((state) => ({ messages: [...state.messages, msg] })),
+
+  setMessages: (msgs) => set({ messages: msgs }),
 
   updateLastMessage: (content) =>
     set((state) => {
@@ -87,6 +95,12 @@ export const useSessionStore = create<SessionState>((set) => ({
   setTodos: (todos) => set({ todos }),
   setAgentWorking: (working) => set({ isAgentWorking: working }),
 
+  setBrowserScreenshot: (screenshot, url) =>
+    set((state) => ({
+      browserScreenshot: screenshot,
+      browserUrl: url ?? state.browserUrl,
+    })),
+
   clearSession: () =>
     set({
       sessionId: null,
@@ -95,5 +109,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       toolCalls: new Map(),
       todos: [],
       isAgentWorking: false,
+      browserScreenshot: null,
+      browserUrl: '',
     }),
 }));

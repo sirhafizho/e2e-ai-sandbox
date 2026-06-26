@@ -30,6 +30,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface MessageHistoryResponse {
+  messages: Array<{ id: string; role: string; content: string; timestamp: string }>;
+  total: number;
+  context_summary: string | null;
+}
+
 export const api = {
   sessions: {
     list: () => request<SessionInfo[]>('/sessions'),
@@ -43,6 +49,8 @@ export const api = {
       request<void>(`/sessions/${id}`, { method: 'DELETE' }),
     resume: (id: string) =>
       request<SessionInfo>(`/sessions/${id}/resume`, { method: 'POST' }),
+    messages: (id: string) =>
+      request<MessageHistoryResponse>(`/sessions/${id}/messages`),
   },
   health: () => request<{ status: string }>('/health'),
 };

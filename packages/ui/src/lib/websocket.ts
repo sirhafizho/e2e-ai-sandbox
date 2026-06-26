@@ -8,6 +8,7 @@ export type WSEventType =
   | 'todo_update'
   | 'session_status'
   | 'idle_warning'
+  | 'browser_screenshot'
   | 'error';
 
 export interface WSEvent {
