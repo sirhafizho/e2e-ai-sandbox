@@ -81,10 +81,19 @@ const SMALL_MODEL_EFFECTIVE_CONTEXT = 16_384;
  * Check if a model is "small" (7B/8B/3B class) and needs tighter context management.
  * Small models have large theoretical context windows but quality degrades sharply
  * past ~8-16K tokens, so we constrain the effective budget.
+ *
+ * Uses word-boundary-aware matching to avoid false positives:
+ * - "qwen2.5-coder:7b" → true (7b at end)
+ * - "llama3.1:8b" → true (8b at end)
+ * - "qwen2.5-coder:32b" → false (32b, not 3b)
+ * - "something-72b" → false (72b, not 7b)
+ * - "my-custom-13b-model" → false (13b, not 3b)
  */
 export function isSmallModel(modelName: string): boolean {
   const lower = modelName.toLowerCase();
-  return lower.includes('3b') || lower.includes('7b') || lower.includes('8b');
+  // Match standalone small model sizes with word boundaries.
+  // Looks for :Nb, -Nb, or _Nb patterns where N is 3, 7, or 8.
+  return /(?:^|[:\-_])(?:3|7|8)b(?:$|[:\-_])/i.test(lower);
 }
 
 /**
