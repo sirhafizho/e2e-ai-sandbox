@@ -193,32 +193,78 @@ development_status:
   epic-4-5-retrospective: optional
 
   # =====================================================
-  # PHASE 5: Scale & Distribution
+  # PHASE 5: Manual Testing & Refinement
+  # =====================================================
+  # Freeform human-in-the-loop testing and polishing
+  # Quality bar: ship-ready
+  # Process: Hafiz drives, finds issues, we fix iteratively
+  # See: _bmad-output/planning-artifacts/phase5-manual-testing-plan.md
+
+  phase-5-manual-testing: backlog
+
+  # Sprint A1: Critical Wiring (P0)
+  sprint-a1: backlog
+  a1-1-wire-knowledge-injection: backlog
+  a1-2-wire-repo-map-generation: backlog
+  a1-3-emit-todo-update-events: backlog
+  a1-4-wire-browser-screenshots-to-ui: backlog
+  a1-5-accept-repo-url-in-session-creation: backlog
+
+  # Sprint A2: Agent Loop Completeness (P0-P1)
+  sprint-a2: backlog
+  a2-1-wire-checkpoint-creation: backlog
+  a2-2-wire-forced-summarization: backlog
+  a2-3-wire-selective-retention: backlog
+  a2-4-wire-idle-monitor: backlog
+  a2-5-wire-checkpoint-restore: backlog
+
+  # Sprint A3: 7B Model Tuning
+  sprint-a3: backlog
+  a3-1-tune-context-window-for-7b: backlog
+  a3-2-optimize-system-prompt-for-small-models: backlog
+  a3-3-compress-tool-output: backlog
+  a3-4-limit-tool-definitions: backlog
+  a3-5-add-micro-step-hints: backlog
+
+  # Sprint A4: UI Feature Completion (P1-P2)
+  sprint-a4: backlog
+  a4-1-add-file-write-endpoint: backlog
+  a4-2-wire-terminal-multi-tab: backlog
+  a4-3-fix-session-list-fields: backlog
+  a4-4-wire-note-suggester: backlog
+  a4-5-wire-secrets-injection: backlog
+
+  # Track B & C: Manual Testing (freeform, after Track A)
+  track-b-greenfield-testing: backlog
+  track-c-brownfield-testing: backlog
+
+  # =====================================================
+  # PHASE 6: Scale & Distribution (formerly Phase 5)
   # =====================================================
 
-  # Epic 5.1: Docker Compose & Deployment
-  epic-5-1: backlog
-  5-1-1-docker-compose-yml: backlog
-  5-1-2-production-configuration: backlog
-  epic-5-1-retrospective: optional
+  # Epic 6.1: Docker Compose & Deployment
+  epic-6-1: backlog
+  6-1-1-docker-compose-yml: backlog
+  6-1-2-production-configuration: backlog
+  epic-6-1-retrospective: optional
 
-  # Epic 5.2: Documentation
-  epic-5-2: backlog
-  5-2-1-readme-with-quickstart: backlog
-  5-2-2-architecture-guide: backlog
-  5-2-3-tool-authoring-guide: backlog
-  5-2-4-environment-yaml-reference: backlog
-  epic-5-2-retrospective: optional
+  # Epic 6.2: Documentation
+  epic-6-2: backlog
+  6-2-1-readme-with-quickstart: backlog
+  6-2-2-architecture-guide: backlog
+  6-2-3-tool-authoring-guide: backlog
+  6-2-4-environment-yaml-reference: backlog
+  epic-6-2-retrospective: optional
 
-  # Epic 5.3: Multi-Session & Auth
-  epic-5-3: backlog
-  5-3-1-multiple-concurrent-sessions: backlog
-  5-3-2-api-key-authentication: backlog
-  epic-5-3-retrospective: optional
+  # Epic 6.3: Multi-Session & Auth
+  epic-6-3: backlog
+  6-3-1-multiple-concurrent-sessions: backlog
+  6-3-2-api-key-authentication: backlog
+  epic-6-3-retrospective: optional
 
-  # Epic 5.4: Extensibility
-  epic-5-4: backlog
-  5-4-1-plugin-system-for-custom-tools: backlog
-  5-4-2-mcp-adapter: backlog
-  5-4-3-openapi-spec-auto-generation: backlog
-  epic-5-4-retrospective: optional
+  # Epic 6.4: Extensibility
+  epic-6-4: backlog
+  6-4-1-plugin-system-for-custom-tools: backlog
+  6-4-2-mcp-adapter: backlog
+  6-4-3-openapi-spec-auto-generation: backlog
+  epic-6-4-retrospective: optional

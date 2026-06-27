@@ -177,7 +177,67 @@
 
 ---
 
-## Phase 5: Scale & Distribution (Weeks 13-16)
+## Phase 5: Manual Testing & Refinement (Weeks 13-15)
+**Goal:** Battle-test Forge through real-world usage until it feels like a Mini Devin SWE product
+
+### Track A: Wire & Tune (do first)
+Audit found 27 issues (5 P0, 9 P1, 9 P2, 4 P3). Entire Phase 4 knowledge system is dead code.
+
+#### Sprint A1: Critical Wiring (P0)
+- [ ] Wire knowledge injection into agent loop (KnowledgeInjector.inject() never called)
+- [ ] Wire repo map generation on session creation (RepoMapGenerator never instantiated)
+- [ ] Emit todo_update events from agent loop (UI todo list is empty)
+- [ ] Wire browser screenshots to UI (browser panel is dead)
+- [ ] Accept repo_url in session creation (can't clone repos)
+
+#### Sprint A2: Agent Loop Completeness (P0-P1)
+- [ ] Wire checkpoint creation at 95% token budget
+- [ ] Wire forced summarization at 85% threshold
+- [ ] Wire selective retention for smart output truncation
+- [ ] Wire idle monitor (sessions never timeout)
+- [ ] Wire checkpoint restore on session resume
+
+#### Sprint A3: 7B Model Tuning
+- [ ] Tune effective context window (8-16K vs 128K theoretical)
+- [ ] Optimize system prompt for small models
+- [ ] Compress tool output more aggressively
+- [ ] Limit tool definitions per turn (phase-based)
+- [ ] Add micro-step hints after tool results
+
+#### Sprint A4: UI Feature Completion (P1-P2)
+- [ ] Add file write REST endpoint + enable editor
+- [ ] Wire terminal multi-tab support
+- [ ] Fix session list missing fields
+- [ ] Wire note suggester on session end
+- [ ] Wire secrets injection into containers
+
+### Track B: Greenfield Testing (blank workspace)
+- [ ] Build something from scratch (multi-step task)
+- [ ] Refactor a module (precise edits, linting)
+- [ ] Web scraping task (browser tools)
+- [ ] Long running session (20+ turns, summarization)
+
+### Track C: Brownfield Testing (existing repos)
+- [ ] Fix a bug in an existing repo (clone, explore, edit, commit)
+- [ ] Understand a codebase (exploration, synthesis)
+- [ ] Add a feature to an existing project
+
+### Exit Criteria
+- [ ] Track A complete — all 20 wiring tasks done
+- [ ] Track B passed — 3+ greenfield workflows successful
+- [ ] Track C passed — 2+ brownfield workflows successful
+- [ ] All P0 and P1 bugs resolved
+- [ ] No known crashes or data loss
+- [ ] Hafiz says it feels like a product
+
+**Phase 5 Deliverable:** A polished, reliable single-user experience that feels like a real SWE product.
+
+See: `_bmad-output/planning-artifacts/phase5-manual-testing-plan.md` for full plan.
+See: `_bmad-output/planning-artifacts/phase5-audit-findings.md` for detailed audit findings.
+
+---
+
+## Phase 6: Scale & Distribution (Weeks 16-19)
 **Goal:** Ready for others to use
 
 ### Docker Compose
@@ -217,7 +277,7 @@
 - [ ] Auto-generated from route definitions
 - [ ] Enables programmatic access
 
-**Phase 5 Deliverable:** Anyone can `docker compose up`, point at Ollama, and have a working autonomous coding agent.
+**Phase 6 Deliverable:** Anyone can `docker compose up`, point at Ollama, and have a working autonomous coding agent.
 
 ---
 
