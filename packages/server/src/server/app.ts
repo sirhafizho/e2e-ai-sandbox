@@ -23,6 +23,8 @@ import {
 import type { ServerSettings } from '../db/index.js';
 import { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
 import { RepoMapGenerator } from '../knowledge/repo-map-generator.js';
+import { CheckpointManager } from '../knowledge/checkpoint-manager.js';
+import { IdleMonitor } from './idle-monitor.js';
 import type { LLMProviderConfig } from '@forge/shared';
 import { CreateKnowledgeNoteInput as CreateNoteSchema } from '@forge/shared';
 import { z } from 'zod';
@@ -51,6 +53,8 @@ export interface SessionState {
   createdAt: string;
   volumeName?: string;
   repo?: string;
+  /** Checkpoint resume context to inject into the next system prompt. */
+  resumeContext?: string;
   agentLoop?: AgentLoop;
 }
 
@@ -88,6 +92,33 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
 
   // In-memory state for active sessions (runtime-only data like agentLoop)
   const sessions = new Map<string, SessionState>();
+
+  // Track active WebSocket connections per session (for idle monitor warnings)
+  const wsConnections = new Map<string, { send: (data: string) => void }>();
+
+  // Idle monitor — background cleanup loop for idle sessions
+  const idleMonitor = new IdleMonitor(sessionStore, containerManager, sessions, {
+    idleTimeoutMs: 60 * 60 * 1000,       // 1 hour
+    warningMinutes: 5,                     // Warn 5 min before timeout
+    destroyAfterMs: 24 * 60 * 60 * 1000, // Destroy after 24 hours
+    checkIntervalMs: 60 * 1000,           // Check every minute
+  });
+
+  idleMonitor.setWarningCallback((sessionId, minutesRemaining) => {
+    const ws = wsConnections.get(sessionId);
+    if (ws) {
+      try {
+        ws.send(JSON.stringify({
+          type: 'idle_warning',
+          minutes_remaining: minutesRemaining,
+        }));
+      } catch {
+        // Connection may be closed
+      }
+    }
+  });
+
+  idleMonitor.start();
 
   app.use('*', cors());
 
@@ -515,16 +546,25 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       const model = createProvider(providerConfig);
       session.agentLoop = new AgentLoop(model, toolRegistry, containerManager, {
         tokenBudget: TokenBudget.forModel(session.model),
+        checkpointManager: new CheckpointManager(checkpointStore),
       });
     }
 
     try {
       // Inject knowledge context (rules, notes, session history, repo map) into system prompt
-      const knowledgeContext = await knowledgeInjector.inject(
+      let knowledgeContext = await knowledgeInjector.inject(
         session.containerId,
         session.repo ?? null,
         [],    // taskKeywords — simple extraction later
       );
+
+      // Append checkpoint resume context if this is a resumed session
+      if (session.resumeContext) {
+        knowledgeContext = knowledgeContext
+          ? `${knowledgeContext}\n\n${session.resumeContext}`
+          : session.resumeContext;
+        session.resumeContext = undefined; // Only inject once
+      }
 
       const toolSpecs = toolRegistry.list();
       const systemPrompt = buildSystemPrompt({
@@ -623,6 +663,14 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         volumeName: containerInfo.volumeName,
       });
 
+      // Load checkpoint context if one exists (for injection into next system prompt)
+      let resumeContext: string | undefined;
+      const cpManager = new CheckpointManager(checkpointStore);
+      const checkpoint = cpManager.loadCheckpoint(id);
+      if (checkpoint) {
+        resumeContext = cpManager.formatForResume(checkpoint);
+      }
+
       // Hydrate in-memory state
       const session: SessionState = {
         id,
@@ -631,6 +679,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         status: 'ready',
         createdAt: dbRow.created_at,
         volumeName: containerInfo.volumeName,
+        resumeContext,
       };
 
       sessions.set(id, session);
@@ -798,7 +847,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           toolRegistry,
           sessionStore,
           settingsStore,
+          checkpointStore,
           knowledgeInjector,
+          wsConnections,
         });
       }),
     );
@@ -830,5 +881,6 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     secretsStore,
     checkpointStore,
     knowledgeInjector,
+    idleMonitor,
   };
 }

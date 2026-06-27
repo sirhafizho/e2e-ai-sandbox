@@ -6,7 +6,7 @@ const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
 
 export function startServer() {
   const wss = new WebSocketServer({ noServer: true });
-  const { app } = createApp(upgradeWebSocket);
+  const { app, idleMonitor } = createApp(upgradeWebSocket);
 
   const server = serve(
     {
@@ -20,6 +20,14 @@ export function startServer() {
       console.log('Press Ctrl+C to stop');
     },
   );
+
+  // Clean up idle monitor on shutdown
+  const shutdown = () => {
+    idleMonitor.stop();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
   return server;
 }

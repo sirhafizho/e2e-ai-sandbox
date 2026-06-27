@@ -1,5 +1,6 @@
 import type { ModelMessage } from 'ai';
 import { estimateMessagesTokens } from './token-estimator.js';
+import { SelectiveRetention } from '../knowledge/selective-retention.js';
 
 /**
  * Manages conversation history for a session.
@@ -22,6 +23,8 @@ export class ConversationHistory {
   private contextSummary: string | null = null;
   /** Number of recent turns to always keep. */
   private retainedTurns: number;
+  /** Selective retention for smart tool output truncation. */
+  private retention = new SelectiveRetention();
 
   constructor(options?: { retainedTurns?: number }) {
     this.retainedTurns = options?.retainedTurns ?? DEFAULT_RETAINED_TURNS;
@@ -46,9 +49,26 @@ export class ConversationHistory {
    * Add assistant response messages to history.
    * These come from streamText().responseMessages and may include
    * assistant text, tool calls, and tool results.
+   *
+   * Tool result content is truncated using SelectiveRetention to
+   * reduce token usage (stack trace dedup, file content trimming, etc).
    */
   addResponseMessages(messages: ModelMessage[]): void {
-    this.messages.push(...messages);
+    for (const msg of messages) {
+      if (msg.role === 'tool' && Array.isArray(msg.content)) {
+        // Truncate tool result content while preserving message structure
+        const truncatedContent = msg.content.map((part) => {
+          if (typeof part === 'object' && part !== null && 'result' in part) {
+            const toolPart = part as { type: string; toolCallId: string; toolName: string; result: unknown };
+            return { ...toolPart, result: this.retention.truncateToolOutput(toolPart.result) };
+          }
+          return part;
+        });
+        this.messages.push({ ...msg, content: truncatedContent as typeof msg.content });
+      } else {
+        this.messages.push(msg);
+      }
+    }
   }
 
   /** Get all messages for passing to streamText(). */

@@ -9,6 +9,7 @@ import { TodoTracker } from './todo-tracker.js';
 import { ParallelDispatch } from './parallel-dispatch.js';
 import { estimateSystemTokens } from './token-estimator.js';
 import { withRetry } from './error-recovery.js';
+import type { CheckpointManager } from '../knowledge/checkpoint-manager.js';
 
 const MAX_STEPS = 25;
 
@@ -16,6 +17,8 @@ export interface AgentLoopOptions {
   history?: ConversationHistory;
   tokenBudget?: TokenBudget;
   todoTracker?: TodoTracker;
+  /** CheckpointManager for emergency context saves at 95%+ token usage. */
+  checkpointManager?: CheckpointManager;
   /** Maximum parallel tool calls (default: 10). */
   maxParallelToolCalls?: number;
   /** Disable retry logic (useful for testing). */
@@ -29,8 +32,11 @@ export class AgentLoop {
   private history: ConversationHistory;
   private tokenBudget: TokenBudget | null;
   private todoTracker: TodoTracker;
+  private checkpointManager: CheckpointManager | null;
   private parallelDispatch: ParallelDispatch;
   private disableRetry: boolean;
+  /** The most recent user message, used for checkpoint creation. */
+  private lastUserMessage: string = '';
   /** Queue for error recovery events emitted during tool execution callbacks. */
   private pendingRecoveryEvents: AgentEvent[] = [];
 
@@ -46,6 +52,7 @@ export class AgentLoop {
     this.history = options?.history ?? new ConversationHistory();
     this.tokenBudget = options?.tokenBudget ?? null;
     this.todoTracker = options?.todoTracker ?? new TodoTracker();
+    this.checkpointManager = options?.checkpointManager ?? null;
     this.parallelDispatch = new ParallelDispatch(options?.maxParallelToolCalls ?? 10);
     this.disableRetry = options?.disableRetry ?? false;
   }
@@ -89,6 +96,7 @@ export class AgentLoop {
   private async *handleBudgetPressure(
     systemPrompt: string,
     toolCount: number,
+    sessionContext?: SessionContext,
   ): AsyncGenerator<AgentEvent> {
     if (!this.tokenBudget) return;
 
@@ -108,18 +116,74 @@ export class AgentLoop {
       },
     };
 
-    // Check if windowing is needed
+    // Emergency: checkpoint at 95%+ and aggressively window
+    if (this.tokenBudget.shouldCheckpoint() && this.checkpointManager && sessionContext) {
+      const checkpoint = this.checkpointManager.createCheckpoint(
+        sessionContext.sessionId,
+        this.history,
+        this.todoTracker,
+        this.lastUserMessage,
+      );
+
+      yield {
+        type: 'token_budget',
+        data: {
+          level: 'emergency' as BudgetLevel,
+          usageRatio: this.tokenBudget.usageRatio,
+          checkpoint_id: checkpoint.checkpoint_id,
+          message: 'Context checkpointed — older context will be evicted',
+        },
+      };
+
+      // Aggressively window after checkpoint — keep only last 2 turns
+      const evictableContent = this.history.getEvictableContent();
+      if (evictableContent) {
+        const summary = this.buildExtractSummary(evictableContent);
+        const messagesBefore = this.history.length;
+        const tokensFreed = this.history.applyWindowing(summary);
+        this.updateBudget(systemPrompt, toolCount);
+
+        yield {
+          type: 'context_windowed',
+          data: {
+            evictedMessages: messagesBefore - this.history.length,
+            tokensFreed,
+            newLevel: this.tokenBudget.level,
+          },
+        };
+      }
+      return;
+    }
+
+    // Critical: forced summarization at 85%+ — more aggressive windowing
+    if (this.tokenBudget.shouldForceSummarize()) {
+      const evictableContent = this.history.getEvictableContent();
+      if (!evictableContent) return;
+
+      const summary = this.buildExtractSummary(evictableContent);
+      const messagesBefore = this.history.length;
+      const tokensFreed = this.history.applyWindowing(summary);
+      this.updateBudget(systemPrompt, toolCount);
+
+      yield {
+        type: 'context_windowed',
+        data: {
+          evictedMessages: messagesBefore - this.history.length,
+          tokensFreed,
+          newLevel: this.tokenBudget.level,
+        },
+      };
+      return;
+    }
+
+    // Warning: gentle windowing at 70%+
     if (this.tokenBudget.shouldSummarize()) {
       const evictableContent = this.history.getEvictableContent();
       if (!evictableContent) return;
 
-      // Build a simple extractive summary from the evictable content
       const summary = this.buildExtractSummary(evictableContent);
       const messagesBefore = this.history.length;
-
       const tokensFreed = this.history.applyWindowing(summary);
-
-      // Update budget after windowing
       this.updateBudget(systemPrompt, toolCount);
 
       yield {
@@ -164,11 +228,14 @@ export class AgentLoop {
         sessionId: sessionContext.sessionId,
       });
 
+    // Track user message for checkpoint creation
+    this.lastUserMessage = userMessage;
+
     // Append user message to conversation history
     this.history.addUserMessage(userMessage);
 
-    // Check token budget before sending to LLM — may trigger windowing
-    yield* this.handleBudgetPressure(systemPrompt, toolSpecs.length);
+    // Check token budget before sending to LLM — may trigger windowing/checkpoint
+    yield* this.handleBudgetPressure(systemPrompt, toolSpecs.length, sessionContext);
 
     // Build system prompt with context summary and todo list
     let effectiveSystemPrompt = systemPrompt;

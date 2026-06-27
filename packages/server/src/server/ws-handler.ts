@@ -9,7 +9,9 @@ import { createProvider } from '../llm/provider.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';
 import type { SessionStore } from '../db/session-store.js';
 import type { SettingsStore } from '../db/settings-store.js';
+import type { CheckpointStore } from '../db/checkpoint-store.js';
 import type { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
+import { CheckpointManager } from '../knowledge/checkpoint-manager.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 interface SessionState {
@@ -18,6 +20,7 @@ interface SessionState {
   model: string;
   status: 'created' | 'booting' | 'ready' | 'running' | 'terminated';
   repo?: string;
+  resumeContext?: string;
   agentLoop?: AgentLoop;
 }
 
@@ -27,7 +30,9 @@ interface WsSessionDeps {
   toolRegistry: ToolRegistry;
   sessionStore?: SessionStore;
   settingsStore?: SettingsStore;
+  checkpointStore?: CheckpointStore;
   knowledgeInjector?: KnowledgeInjector;
+  wsConnections?: Map<string, { send: (data: string) => void }>;
 }
 
 /**
@@ -52,6 +57,11 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
         send(ws, { type: 'error', code: 'SESSION_NOT_FOUND', message: 'Session not found' });
         ws.close(4004, 'Session not found');
         return;
+      }
+
+      // Register WebSocket connection for idle monitor warnings
+      if (deps.wsConnections) {
+        deps.wsConnections.set(sessionId, { send: (data: string) => ws.send(data) });
       }
 
       // Send greeting
@@ -111,6 +121,9 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
             const model = createProvider(providerConfig);
             session.agentLoop = new AgentLoop(model, deps.toolRegistry, deps.containerManager, {
               tokenBudget: TokenBudget.forModel(session.model),
+              checkpointManager: deps.checkpointStore
+                ? new CheckpointManager(deps.checkpointStore)
+                : undefined,
             });
           }
 
@@ -124,11 +137,20 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
             // Inject knowledge context (rules, notes, session history, repo map) into system prompt
             let systemPrompt: string | undefined;
             if (deps.knowledgeInjector) {
-              const knowledgeContext = await deps.knowledgeInjector.inject(
+              let knowledgeContext = await deps.knowledgeInjector.inject(
                 session.containerId,
                 session.repo ?? null,
                 [],    // taskKeywords — simple extraction later
               );
+
+              // Append checkpoint resume context if this is a resumed session
+              if (session.resumeContext) {
+                knowledgeContext = knowledgeContext
+                  ? `${knowledgeContext}\n\n${session.resumeContext}`
+                  : session.resumeContext;
+                session.resumeContext = undefined; // Only inject once
+              }
+
               const toolSpecs = deps.toolRegistry.list();
               systemPrompt = buildSystemPrompt({
                 toolNames: toolSpecs.map((t) => t.name),
@@ -317,6 +339,10 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
     },
 
     onClose() {
+      // Unregister WebSocket connection
+      if (deps.wsConnections) {
+        deps.wsConnections.delete(sessionId);
+      }
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
