@@ -16,6 +16,8 @@ export interface CreateSessionOptions {
   model?: string;
   provider?: string;
   image?: string;
+  repo_url?: string;
+  branch?: string;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Play, Clock, CircleDot } from 'lucide-react';
+import { Plus, Trash2, Play, Clock, CircleDot, X } from 'lucide-react';
 import { api } from '../lib/api.js';
-import type { SessionInfo } from '../lib/api.js';
+import type { SessionInfo, CreateSessionOptions } from '../lib/api.js';
 
 export function SessionsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [repoUrl, setRepoUrl] = useState('');
+  const [branch, setBranch] = useState('');
 
   const { data: sessions, isLoading, error } = useQuery({
     queryKey: ['sessions'],
@@ -15,9 +19,12 @@ export function SessionsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.sessions.create(),
+    mutationFn: (opts?: CreateSessionOptions) => api.sessions.create(opts),
     onSuccess: (session) => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      setShowCreate(false);
+      setRepoUrl('');
+      setBranch('');
       navigate(`/sessions/${session.id}`);
     },
   });
@@ -29,6 +36,13 @@ export function SessionsPage() {
     },
   });
 
+  const handleCreate = () => {
+    const opts: CreateSessionOptions = {};
+    if (repoUrl.trim()) opts.repo_url = repoUrl.trim();
+    if (branch.trim()) opts.branch = branch.trim();
+    createMutation.mutate(Object.keys(opts).length > 0 ? opts : undefined);
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -38,7 +52,7 @@ export function SessionsPage() {
           <p className="text-sm text-zinc-500">Manage your agent sessions</p>
         </div>
         <button
-          onClick={() => createMutation.mutate()}
+          onClick={() => setShowCreate(!showCreate)}
           disabled={createMutation.isPending}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
         >
@@ -46,6 +60,52 @@ export function SessionsPage() {
           New Session
         </button>
       </div>
+
+      {/* Create session form */}
+      {showCreate && (
+        <div className="border-b border-zinc-800 bg-zinc-900/50 px-6 py-4">
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs text-zinc-500">Repository URL (optional)</label>
+              <input
+                type="text"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                placeholder="https://github.com/user/repo"
+                className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div className="w-40">
+              <label className="mb-1 block text-xs text-zinc-500">Branch (optional)</label>
+              <input
+                type="text"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="main"
+                className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+            >
+              {createMutation.isPending ? 'Creating...' : 'Create'}
+            </button>
+            <button
+              onClick={() => { setShowCreate(false); setRepoUrl(''); setBranch(''); }}
+              className="rounded-md bg-zinc-800 p-1.5 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {createMutation.isError && (
+            <p className="mt-2 text-xs text-red-400">
+              {createMutation.error?.message ?? 'Failed to create session'}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">

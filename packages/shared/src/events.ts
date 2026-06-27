@@ -98,6 +98,13 @@ export const ContextWindowedEvent = z.object({
 });
 export type ContextWindowedEvent = z.infer<typeof ContextWindowedEvent>;
 
+export const BrowserScreenshotEvent = z.object({
+  type: z.literal('browser_screenshot'),
+  screenshot: z.string(),
+  url: z.string().optional(),
+});
+export type BrowserScreenshotEvent = z.infer<typeof BrowserScreenshotEvent>;
+
 export const ServerWebSocketEvent = z.discriminatedUnion('type', [
   GreetingEvent,
   AgentMessageEvent,
@@ -111,6 +118,7 @@ export const ServerWebSocketEvent = z.discriminatedUnion('type', [
   ErrorEvent,
   TokenBudgetEvent,
   ContextWindowedEvent,
+  BrowserScreenshotEvent,
 ]);
 export type ServerWebSocketEvent = z.infer<typeof ServerWebSocketEvent>;
 

@@ -1,7 +1,7 @@
 import { streamText, dynamicTool, isStepCount, type LanguageModel } from 'ai';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ContainerManager } from '../sandbox/container-manager.js';
-import type { SessionContext, AgentEvent } from './types.js';
+import type { SessionContext, AgentEvent, AgentEventType } from './types.js';
 import { ConversationHistory } from './conversation-history.js';
 import { buildSystemPrompt } from './system-prompt.js';
 import { TokenBudget, type BudgetLevel } from './token-budget.js';
@@ -281,6 +281,19 @@ export class AgentLoop {
               isError: false,
             },
           };
+
+          // Emit todo state after each tool result so the UI stays current
+          {
+            const todos = this.todoTracker.list();
+            if (todos.length > 0) {
+              yield {
+                type: 'todo_update' as AgentEventType,
+                data: {
+                  todos: todos.map((t) => ({ content: t.content, status: t.status })),
+                },
+              };
+            }
+          }
           break;
         }
 
@@ -321,6 +334,17 @@ export class AgentLoop {
           used: status.used,
           remaining: status.remaining,
           usableBudget: status.usableBudget,
+        },
+      };
+    }
+
+    // Final todo update so the UI has the definitive state
+    const finalTodos = this.todoTracker.list();
+    if (finalTodos.length > 0) {
+      yield {
+        type: 'todo_update' as AgentEventType,
+        data: {
+          todos: finalTodos.map((t) => ({ content: t.content, status: t.status })),
         },
       };
     }

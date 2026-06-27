@@ -6,8 +6,10 @@ import { TokenBudget } from '../agent/token-budget.js';
 import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { createProvider } from '../llm/provider.js';
+import { buildSystemPrompt } from '../agent/system-prompt.js';
 import type { SessionStore } from '../db/session-store.js';
 import type { SettingsStore } from '../db/settings-store.js';
+import type { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 interface SessionState {
@@ -15,6 +17,7 @@ interface SessionState {
   containerId: string;
   model: string;
   status: 'created' | 'booting' | 'ready' | 'running' | 'terminated';
+  repo?: string;
   agentLoop?: AgentLoop;
 }
 
@@ -24,6 +27,7 @@ interface WsSessionDeps {
   toolRegistry: ToolRegistry;
   sessionStore?: SessionStore;
   settingsStore?: SettingsStore;
+  knowledgeInjector?: KnowledgeInjector;
 }
 
 /**
@@ -117,10 +121,27 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
           const messageId = `msg_${crypto.randomUUID().slice(0, 8)}`;
 
           try {
+            // Inject knowledge context (rules, notes, session history, repo map) into system prompt
+            let systemPrompt: string | undefined;
+            if (deps.knowledgeInjector) {
+              const knowledgeContext = await deps.knowledgeInjector.inject(
+                session.containerId,
+                session.repo ?? null,
+                [],    // taskKeywords — simple extraction later
+              );
+              const toolSpecs = deps.toolRegistry.list();
+              systemPrompt = buildSystemPrompt({
+                toolNames: toolSpecs.map((t) => t.name),
+                sessionId: session.id,
+                knowledgeContext: knowledgeContext || undefined,
+              });
+            }
+
             for await (const agentEvent of session.agentLoop.run(parsed.content, {
               sessionId: session.id,
               containerId: session.containerId,
               model: session.model,
+              systemPrompt,
             }, { abortSignal: abortController.signal })) {
               // Map internal agent events to spec WebSocket events
               switch (agentEvent.type) {
@@ -175,6 +196,19 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                         : { output: data.output },
                       duration_ms: data.durationMs,
                     });
+
+                    // If a browser tool returned a screenshot, forward it to the UI
+                    if (data.output && typeof data.output === 'object') {
+                      const output = data.output as Record<string, unknown>;
+                      const screenshot = (output.base64_image ?? output.screenshot) as string | undefined;
+                      if (screenshot) {
+                        send(ws, {
+                          type: 'browser_screenshot',
+                          screenshot,
+                          url: (output.url as string) ?? undefined,
+                        });
+                      }
+                    }
                   }
                   break;
                 }

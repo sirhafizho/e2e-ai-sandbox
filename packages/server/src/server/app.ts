@@ -7,6 +7,7 @@ import { registerBuiltinTools } from '../tools/register-builtins.js';
 import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
 import { TokenBudget } from '../agent/token-budget.js';
+import { buildSystemPrompt } from '../agent/system-prompt.js';
 import { createWsHandlers } from './ws-handler.js';
 import { createTerminalHandlers, destroySessionTerminals } from './terminal-handler.js';
 import {
@@ -21,6 +22,7 @@ import {
 } from '../db/index.js';
 import type { ServerSettings } from '../db/index.js';
 import { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
+import { RepoMapGenerator } from '../knowledge/repo-map-generator.js';
 import type { LLMProviderConfig } from '@forge/shared';
 import { CreateKnowledgeNoteInput as CreateNoteSchema } from '@forge/shared';
 import { z } from 'zod';
@@ -48,6 +50,7 @@ export interface SessionState {
   status: 'created' | 'booting' | 'ready' | 'running' | 'terminated';
   createdAt: string;
   volumeName?: string;
+  repo?: string;
   agentLoop?: AgentLoop;
 }
 
@@ -71,6 +74,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
   const repoMapStore = new RepoMapStore(db);
   const secretsStore = new SecretsStore(db);
   const checkpointStore = new CheckpointStore(db);
+
+  // Repo map generation (structural overview of codebases)
+  const repoMapGenerator = new RepoMapGenerator();
 
   // Knowledge injection (combines notes, rules, history, repo map)
   const knowledgeInjector = new KnowledgeInjector({
@@ -146,7 +152,12 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
   app.post('/api/sessions', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const serverSettings = settingsStore.getAll();
-    const model = (body as { model?: string }).model ?? serverSettings.provider.model;
+    const { model: reqModel, repo_url, branch } = body as {
+      model?: string;
+      repo_url?: string;
+      branch?: string;
+    };
+    const model = reqModel ?? serverSettings.provider.model;
     const sessionId = `ses_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
@@ -164,6 +175,45 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         return c.json({ error: { code: 'CONTAINER_ERROR', message: 'Health check failed' } }, 500);
       }
 
+      // Clone repo into workspace if repo_url was provided
+      if (repo_url) {
+        const cloneCmd = branch
+          ? `cd /workspace && git clone --branch ${JSON.stringify(branch)} --single-branch ${JSON.stringify(repo_url)} .`
+          : `cd /workspace && git clone ${JSON.stringify(repo_url)} .`;
+
+        const cloneResult = await containerManager.exec(containerInfo.containerId, cloneCmd, {
+          timeoutMs: 120_000,
+        });
+
+        if (cloneResult.exitCode !== 0) {
+          await containerManager.destroy(containerInfo.containerId);
+          return c.json({
+            error: {
+              code: 'CONTAINER_ERROR',
+              message: `Failed to clone repo: ${cloneResult.stderr.trim()}`,
+            },
+          }, 500);
+        }
+      }
+
+      // Generate repo map in background (don't block session creation)
+      const repoKey = repo_url ?? sessionId;
+      containerManager.exec(containerInfo.containerId, 'ls /workspace').then(async (lsResult) => {
+        if (lsResult.exitCode === 0 && lsResult.stdout.trim().length > 0) {
+          try {
+            await repoMapGenerator.generate(
+              containerInfo.containerId,
+              containerManager,
+              '/workspace',
+              repoMapStore,
+              repoKey,
+            );
+          } catch (err) {
+            console.warn('Repo map generation failed (non-fatal):', err);
+          }
+        }
+      }).catch(() => { /* non-fatal */ });
+
       // Persist to SQLite
       const dbRow = sessionStore.create({
         id: sessionId,
@@ -180,6 +230,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         status: 'ready',
         createdAt: dbRow.created_at,
         volumeName: containerInfo.volumeName,
+        repo: repo_url,
       };
 
       sessions.set(sessionId, session);
@@ -192,6 +243,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
             model: session.model,
             created_at: session.createdAt,
             ws_url: `/ws/sessions/${session.id}`,
+            repo_url: session.repo ?? null,
           },
         },
         201,
@@ -467,11 +519,26 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     }
 
     try {
+      // Inject knowledge context (rules, notes, session history, repo map) into system prompt
+      const knowledgeContext = await knowledgeInjector.inject(
+        session.containerId,
+        session.repo ?? null,
+        [],    // taskKeywords — simple extraction later
+      );
+
+      const toolSpecs = toolRegistry.list();
+      const systemPrompt = buildSystemPrompt({
+        toolNames: toolSpecs.map((t) => t.name),
+        sessionId: session.id,
+        knowledgeContext: knowledgeContext || undefined,
+      });
+
       const events: unknown[] = [];
       for await (const event of session.agentLoop.run(content, {
         sessionId: session.id,
         containerId: session.containerId,
         model: session.model,
+        systemPrompt,
       })) {
         events.push(event);
       }
@@ -531,6 +598,23 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         await containerManager.destroy(containerInfo.containerId);
         return c.json({ error: { code: 'CONTAINER_ERROR', message: 'Health check failed on resume' } }, 500);
       }
+
+      // Regenerate repo map in background on resume
+      containerManager.exec(containerInfo.containerId, 'ls /workspace').then(async (lsResult) => {
+        if (lsResult.exitCode === 0 && lsResult.stdout.trim().length > 0) {
+          try {
+            await repoMapGenerator.generate(
+              containerInfo.containerId,
+              containerManager,
+              '/workspace',
+              repoMapStore,
+              id,
+            );
+          } catch (err) {
+            console.warn('Repo map generation on resume failed (non-fatal):', err);
+          }
+        }
+      }).catch(() => { /* non-fatal */ });
 
       // Update DB with new container
       sessionStore.update(id, {
@@ -714,6 +798,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           toolRegistry,
           sessionStore,
           settingsStore,
+          knowledgeInjector,
         });
       }),
     );
