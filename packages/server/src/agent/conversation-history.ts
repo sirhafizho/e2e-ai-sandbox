@@ -26,8 +26,11 @@ export class ConversationHistory {
   /** Selective retention for smart tool output truncation. */
   private retention = new SelectiveRetention();
 
-  constructor(options?: { retainedTurns?: number }) {
+  constructor(options?: { retainedTurns?: number; messages?: ModelMessage[] }) {
     this.retainedTurns = options?.retainedTurns ?? DEFAULT_RETAINED_TURNS;
+    if (options?.messages) {
+      this.messages = [...options.messages];
+    }
   }
 
   /** Total number of messages in history. */

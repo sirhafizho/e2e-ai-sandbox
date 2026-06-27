@@ -2,7 +2,6 @@ export type WSEventType =
   | 'greeting'
   | 'agent_message'
   | 'tool_start'
-  | 'tool_output'
   | 'tool_complete'
   | 'tool_error'
   | 'todo_update'

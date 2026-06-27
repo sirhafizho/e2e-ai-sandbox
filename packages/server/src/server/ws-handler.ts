@@ -2,6 +2,7 @@ import type { WSContext } from 'hono/ws';
 import type { ServerWebSocketEvent, ClientWebSocketEvent } from '@forge/shared';
 import { ClientWebSocketEvent as ClientEventSchema } from '@forge/shared';
 import { AgentLoop } from '../agent/agent-loop.js';
+import { ConversationHistory } from '../agent/conversation-history.js';
 import { TokenBudget, isSmallModel } from '../agent/token-budget.js';
 import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
@@ -14,6 +15,7 @@ import type { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
 import type { CheckpointManager } from '../knowledge/checkpoint-manager.js';
 import type { NoteSuggester } from '../knowledge/note-suggester.js';
 import type { LLMProviderConfig } from '@forge/shared';
+import type { ModelMessage } from 'ai';
 
 interface SessionState {
   id: string;
@@ -114,7 +116,7 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
             return;
           }
 
-          // Lazily create agent loop
+          // Lazily create agent loop (restore history from DB if resuming)
           if (!session.agentLoop) {
             const settings = deps.settingsStore?.getAll();
             const providerConfig: LLMProviderConfig = {
@@ -127,10 +129,28 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
             const tokenBudget = isSmallModel(session.model)
               ? TokenBudget.forSmallModel(session.model)
               : TokenBudget.forModel(session.model);
+
+            // Restore conversation history from DB (e.g., after session resume)
+            let history: ConversationHistory | undefined;
+            if (deps.sessionStore) {
+              const dbRow = deps.sessionStore.get(session.id);
+              if (dbRow?.history_json && dbRow.history_json !== '[]') {
+                try {
+                  const messages = JSON.parse(dbRow.history_json) as ModelMessage[];
+                  if (Array.isArray(messages) && messages.length > 0) {
+                    history = new ConversationHistory({ messages });
+                  }
+                } catch {
+                  // Invalid history — start fresh
+                }
+              }
+            }
+
             session.agentLoop = new AgentLoop(model, deps.toolRegistry, deps.containerManager, {
               tokenBudget,
               checkpointManager: deps.checkpointManager,
               modelName: session.model,
+              history,
             });
           }
 

@@ -68,14 +68,15 @@ export function SessionPage() {
     });
 
     ws.on('agent_message', (data) => {
+      const done = (data.done as boolean) ?? false;
       addMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
         content: (data.content as string) ?? '',
-        streaming: (data.streaming as boolean) ?? false,
+        streaming: !done,
         timestamp: new Date().toISOString(),
       });
-      if (!(data.streaming as boolean)) {
+      if (done) {
         setAgentWorking(false);
       }
     });
@@ -84,21 +85,15 @@ export function SessionPage() {
       setToolCall({
         callId: data.call_id as string,
         toolName: data.tool_name as string,
-        input: (data.tool_input as Record<string, unknown>) ?? {},
+        input: { summary: data.input_summary as string },
         status: 'running',
-      });
-    });
-
-    ws.on('tool_output', (data) => {
-      updateToolCall(data.call_id as string, {
-        output: data.output,
-        isError: data.is_error as boolean,
       });
     });
 
     ws.on('tool_complete', (data) => {
       updateToolCall(data.call_id as string, {
         status: 'complete',
+        output: data.result,
         durationMs: data.duration_ms as number,
       });
     });

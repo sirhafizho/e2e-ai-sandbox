@@ -6,6 +6,7 @@ import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register-builtins.js';
 import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
+import { ConversationHistory } from '../agent/conversation-history.js';
 import { TokenBudget, isSmallModel } from '../agent/token-budget.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';
 import { createWsHandlers } from './ws-handler.js';
@@ -630,10 +631,26 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       const tokenBudget = isSmallModel(session.model)
         ? TokenBudget.forSmallModel(session.model)
         : TokenBudget.forModel(session.model);
+
+      // Restore conversation history from DB (e.g., after session resume)
+      let history: ConversationHistory | undefined;
+      const dbRow = sessionStore.get(session.id);
+      if (dbRow?.history_json && dbRow.history_json !== '[]') {
+        try {
+          const messages = JSON.parse(dbRow.history_json) as import('ai').ModelMessage[];
+          if (Array.isArray(messages) && messages.length > 0) {
+            history = new ConversationHistory({ messages });
+          }
+        } catch {
+          // Invalid history — start fresh
+        }
+      }
+
       session.agentLoop = new AgentLoop(model, toolRegistry, containerManager, {
         tokenBudget,
         checkpointManager,
         modelName: session.model,
+        history,
       });
     }
 
