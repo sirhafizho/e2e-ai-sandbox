@@ -11,7 +11,7 @@ import type { SessionStore } from '../db/session-store.js';
 import type { SettingsStore } from '../db/settings-store.js';
 import type { CheckpointStore } from '../db/checkpoint-store.js';
 import type { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
-import { CheckpointManager } from '../knowledge/checkpoint-manager.js';
+import type { CheckpointManager } from '../knowledge/checkpoint-manager.js';
 import type { NoteSuggester } from '../knowledge/note-suggester.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
@@ -32,6 +32,7 @@ interface WsSessionDeps {
   sessionStore?: SessionStore;
   settingsStore?: SettingsStore;
   checkpointStore?: CheckpointStore;
+  checkpointManager?: CheckpointManager;
   knowledgeInjector?: KnowledgeInjector;
   wsConnections?: Map<string, { send: (data: string) => void }>;
   noteSuggester?: NoteSuggester;
@@ -94,6 +95,8 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
       let parsed: ClientWebSocketEvent;
       try {
         const raw = JSON.parse(typeof event.data === 'string' ? event.data : String(event.data));
+        // Silently accept ping messages (heartbeat keep-alive from client)
+        if (raw && typeof raw === 'object' && raw.type === 'ping') return;
         parsed = ClientEventSchema.parse(raw);
       } catch {
         send(ws, { type: 'error', code: 'INVALID_MESSAGE', message: 'Invalid message format' });
@@ -126,9 +129,7 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
               : TokenBudget.forModel(session.model);
             session.agentLoop = new AgentLoop(model, deps.toolRegistry, deps.containerManager, {
               tokenBudget,
-              checkpointManager: deps.checkpointStore
-                ? new CheckpointManager(deps.checkpointStore)
-                : undefined,
+              checkpointManager: deps.checkpointManager,
               modelName: session.model,
             });
           }

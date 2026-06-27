@@ -51,6 +51,11 @@ export class RulesLoader {
       return cached.rules;
     }
 
+    // Validate workspace path to prevent path traversal
+    if (workspacePath.includes('..')) {
+      return [];
+    }
+
     const rules: LoadedRule[] = [];
 
     for (const pattern of RULE_FILE_PATTERNS) {

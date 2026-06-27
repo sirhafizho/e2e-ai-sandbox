@@ -7,12 +7,14 @@ describe('Files API', () => {
   let server: ReturnType<typeof serve>;
   let port: number;
   let sessionId: string;
+  let idleMonitor: { stop: () => void };
 
   before(async () => {
-    const { app } = createApp(undefined);
+    const result = createApp(undefined);
+    idleMonitor = result.idleMonitor;
 
     port = 3200 + Math.floor(Math.random() * 800);
-    server = serve({ fetch: app.fetch, port });
+    server = serve({ fetch: result.app.fetch, port });
 
     // Create a session
     const res = await fetch(`http://localhost:${port}/api/sessions`, {
@@ -28,6 +30,7 @@ describe('Files API', () => {
     await fetch(`http://localhost:${port}/api/sessions/${sessionId}`, {
       method: 'DELETE',
     }).catch(() => {});
+    idleMonitor.stop();
     server.close();
     await new Promise((resolve) => setTimeout(resolve, 500));
   });

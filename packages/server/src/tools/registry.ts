@@ -73,12 +73,14 @@ export class ToolRegistry {
     const timeoutMs = spec.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
     try {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const output = await Promise.race([
         handler(parseResult.data, context),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Tool timed out after ${timeoutMs}ms`)), timeoutMs),
-        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Tool timed out after ${timeoutMs}ms`)), timeoutMs);
+        }),
       ]);
+      clearTimeout(timer);
 
       return {
         callId,

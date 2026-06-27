@@ -91,6 +91,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     containerManager,
   });
 
+  // Checkpoint management (save/restore agent state at token budget emergency)
+  const checkpointManager = new CheckpointManager(checkpointStore);
+
   // Note suggestion (auto-learns from conversations)
   const noteSuggester = new NoteSuggester(knowledgeStore);
 
@@ -254,7 +257,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
 
       // Generate repo map in background (don't block session creation)
       const repoKey = repo_url ?? sessionId;
-      containerManager.exec(containerInfo.containerId, 'ls /workspace').then(async (lsResult) => {
+      void containerManager.exec(containerInfo.containerId, 'ls /workspace').then(async (lsResult) => {
         if (lsResult.exitCode === 0 && lsResult.stdout.trim().length > 0) {
           try {
             await repoMapGenerator.generate(
@@ -268,7 +271,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
             console.warn('Repo map generation failed (non-fatal):', err);
           }
         }
-      }).catch(() => { /* non-fatal */ });
+      }).catch((err) => { console.warn('Repo map ls check failed (non-fatal):', err); });
 
       // Persist to SQLite
       const dbRow = sessionStore.create({
@@ -629,7 +632,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         : TokenBudget.forModel(session.model);
       session.agentLoop = new AgentLoop(model, toolRegistry, containerManager, {
         tokenBudget,
-        checkpointManager: new CheckpointManager(checkpointStore),
+        checkpointManager,
         modelName: session.model,
       });
     }
@@ -725,7 +728,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       }
 
       // Regenerate repo map in background on resume
-      containerManager.exec(containerInfo.containerId, 'ls /workspace').then(async (lsResult) => {
+      void containerManager.exec(containerInfo.containerId, 'ls /workspace').then(async (lsResult) => {
         if (lsResult.exitCode === 0 && lsResult.stdout.trim().length > 0) {
           try {
             await repoMapGenerator.generate(
@@ -739,7 +742,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
             console.warn('Repo map generation on resume failed (non-fatal):', err);
           }
         }
-      }).catch(() => { /* non-fatal */ });
+      }).catch((err) => { console.warn('Repo map ls check on resume failed (non-fatal):', err); });
 
       // Update DB with new container
       sessionStore.update(id, {
@@ -750,10 +753,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
 
       // Load checkpoint context if one exists (for injection into next system prompt)
       let resumeContext: string | undefined;
-      const cpManager = new CheckpointManager(checkpointStore);
-      const checkpoint = cpManager.loadCheckpoint(id);
+      const checkpoint = checkpointManager.loadCheckpoint(id);
       if (checkpoint) {
-        resumeContext = cpManager.formatForResume(checkpoint);
+        resumeContext = checkpointManager.formatForResume(checkpoint);
       }
 
       // Hydrate in-memory state
@@ -777,7 +779,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           created_at: dbRow.created_at,
           ws_url: `/ws/sessions/${id}`,
           resumed: true,
-          history_length: JSON.parse(dbRow.history_json).length,
+          history_length: (() => { try { const h = JSON.parse(dbRow.history_json); return Array.isArray(h) ? h.length : 0; } catch { return 0; } })(),
         },
       });
     } catch (err) {
@@ -933,6 +935,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           sessionStore,
           settingsStore,
           checkpointStore,
+          checkpointManager,
           knowledgeInjector,
           wsConnections,
           noteSuggester,

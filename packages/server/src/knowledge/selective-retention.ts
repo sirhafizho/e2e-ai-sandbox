@@ -203,6 +203,15 @@ export class SelectiveRetention {
       return this.truncateToolOutput(output);
     }
 
+    // Handle empty/null outputs for small models with clear indicators
+    if (output === null || output === undefined) {
+      return exitCode === 0 ? '[No output]' : '[Error with no output]';
+    }
+
+    if (typeof output === 'string' && output.trim() === '') {
+      return exitCode === 0 ? '[No output]' : '[Error with no output]';
+    }
+
     if (typeof output !== 'string') {
       return this.truncateToolOutput(output);
     }

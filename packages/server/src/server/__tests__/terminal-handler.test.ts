@@ -36,15 +36,17 @@ describe('Terminal WebSocket Handler', () => {
   let server: ReturnType<typeof serve>;
   let port: number;
   let sessionId: string;
+  let idleMonitor: { stop: () => void };
 
   before(async () => {
     const wss = new WebSocketServer({ noServer: true });
-    const { app } = createApp(upgradeWebSocket);
+    const result = createApp(upgradeWebSocket);
+    idleMonitor = result.idleMonitor;
 
     port = 3400 + Math.floor(Math.random() * 600);
 
     server = serve({
-      fetch: app.fetch,
+      fetch: result.app.fetch,
       port,
       websocket: { server: wss },
     });
@@ -63,6 +65,7 @@ describe('Terminal WebSocket Handler', () => {
     await fetch(`http://localhost:${port}/api/sessions/${sessionId}`, {
       method: 'DELETE',
     }).catch(() => {});
+    idleMonitor.stop();
     server.close();
     await new Promise((resolve) => setTimeout(resolve, 500));
   });

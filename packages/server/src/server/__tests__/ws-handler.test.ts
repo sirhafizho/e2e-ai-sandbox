@@ -53,16 +53,18 @@ describe('WebSocket Handler', () => {
   let server: ReturnType<typeof serve>;
   let port: number;
   let sessionId: string;
+  let idleMonitor: { stop: () => void };
 
   before(async () => {
     const wss = new WebSocketServer({ noServer: true });
-    const { app } = createApp(upgradeWebSocket);
+    const result = createApp(upgradeWebSocket);
+    idleMonitor = result.idleMonitor;
 
     // Find a free port
     port = 3100 + Math.floor(Math.random() * 900);
 
     server = serve({
-      fetch: app.fetch,
+      fetch: result.app.fetch,
       port,
       websocket: { server: wss },
     });
@@ -83,6 +85,7 @@ describe('WebSocket Handler', () => {
       method: 'DELETE',
     }).catch(() => {});
 
+    idleMonitor.stop();
     server.close();
     // Wait for server to close
     await new Promise((resolve) => setTimeout(resolve, 500));

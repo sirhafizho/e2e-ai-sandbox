@@ -38,7 +38,7 @@ describe('IdleMonitor', () => {
 
     const monitor = new IdleMonitor(store, cm, sessions, {
       idleTimeoutMs: 60 * 60 * 1000,
-      warningMinutes: 55,
+      warningMinutes: 5,
     });
     monitor.setWarningCallback((id, min) => warnings.push({ sessionId: id, minutesRemaining: min }));
     monitor.check();
@@ -63,7 +63,7 @@ describe('IdleMonitor', () => {
 
     const monitor = new IdleMonitor(store, cm, sessions, {
       idleTimeoutMs: 60 * 60 * 1000,
-      warningMinutes: 55,
+      warningMinutes: 5,
     });
     monitor.setWarningCallback((id, min) => warnings.push({ sessionId: id, minutesRemaining: min }));
     monitor.check();
@@ -87,7 +87,7 @@ describe('IdleMonitor', () => {
 
     const monitor = new IdleMonitor(store, cm, sessions, {
       idleTimeoutMs: 60 * 60 * 1000,
-      warningMinutes: 55,
+      warningMinutes: 5,
     });
     monitor.setWarningCallback((id) => warnings.push({ sessionId: id }));
 

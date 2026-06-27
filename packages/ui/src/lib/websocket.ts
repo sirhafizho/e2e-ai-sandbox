@@ -30,6 +30,10 @@ export class ForgeWebSocket {
   private reconnectAttempt = 0;
   private maxReconnectAttempts = 5;
   private _connected = false;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private lastPongTime = 0;
+  private static readonly HEARTBEAT_INTERVAL = 30_000; // 30s
+  private static readonly HEARTBEAT_TIMEOUT = 10_000;  // 10s grace for pong
 
   constructor(sessionId: string) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -48,21 +52,26 @@ export class ForgeWebSocket {
     this.ws.onopen = () => {
       this._connected = true;
       this.reconnectAttempt = 0;
+      this.lastPongTime = Date.now();
+      this.startHeartbeat();
       this.emit('_connected', {});
     };
 
     this.ws.onmessage = (event) => {
+      // Any message from server counts as a pong (connection is alive)
+      this.lastPongTime = Date.now();
       try {
         const msg = JSON.parse(event.data as string) as WSEvent;
         this.emit(msg.type, msg.data);
       } catch {
-        // Ignore malformed messages
+        // Ignore malformed messages (including pong frames)
       }
     };
 
     this.ws.onclose = () => {
       this._connected = false;
       this.ws = null;
+      this.stopHeartbeat();
       this.emit('_disconnected', {});
       this.scheduleReconnect();
     };
@@ -77,12 +86,42 @@ export class ForgeWebSocket {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopHeartbeat();
     this.maxReconnectAttempts = 0; // Prevent reconnection
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     this._connected = false;
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+      // If we haven't heard from the server in too long, connection is dead
+      const elapsed = Date.now() - this.lastPongTime;
+      if (elapsed > ForgeWebSocket.HEARTBEAT_INTERVAL + ForgeWebSocket.HEARTBEAT_TIMEOUT) {
+        console.warn('WebSocket heartbeat timeout — forcing reconnect');
+        this.ws.close();
+        return;
+      }
+
+      // Send a ping (JSON message the server can echo or just treat as keep-alive)
+      try {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      } catch {
+        // Connection may be closing
+      }
+    }, ForgeWebSocket.HEARTBEAT_INTERVAL);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   send(message: WSClientMessage): void {

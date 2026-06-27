@@ -14,13 +14,14 @@ interface TerminalDeps {
 
 /**
  * Track active terminal sessions per container.
- * Key: `${sessionId}:${shellId}` → PTY stream + resize handle.
+ * Key: `${sessionId}:${shellId}` → PTY stream + resize handle + active WebSocket.
  */
 const activeTerminals = new Map<
   string,
   {
     stream: NodeJS.ReadWriteStream;
     resize: (cols: number, rows: number) => Promise<void>;
+    activeWs: WSContext | null;
   }
 >();
 
@@ -63,13 +64,16 @@ export function createTerminalHandlers(
           terminal = {
             stream: pty.stream,
             resize: pty.resize,
+            activeWs: ws,
           };
           activeTerminals.set(termKey, terminal);
 
-          // Pipe PTY output to WebSocket
+          // Pipe PTY output to the currently active WebSocket
           pty.stream.on('data', (data: Buffer) => {
+            const t = activeTerminals.get(termKey);
+            if (!t?.activeWs) return;
             try {
-              ws.send(data.toString('utf-8'));
+              t.activeWs.send(data.toString('utf-8'));
             } catch {
               // WebSocket may be closed
             }
@@ -77,18 +81,24 @@ export function createTerminalHandlers(
 
           // Clean up when the PTY stream ends
           pty.stream.on('end', () => {
+            const t = activeTerminals.get(termKey);
             activeTerminals.delete(termKey);
-            try {
-              ws.send('\r\n\x1b[2m--- Shell exited ---\x1b[0m\r\n');
-              ws.close(1000, 'Shell exited');
-            } catch {
-              // Already closed
+            if (t?.activeWs) {
+              try {
+                t.activeWs.send('\r\n\x1b[2m--- Shell exited ---\x1b[0m\r\n');
+                t.activeWs.close(1000, 'Shell exited');
+              } catch {
+                // Already closed
+              }
             }
           });
 
           pty.stream.on('error', () => {
             activeTerminals.delete(termKey);
           });
+        } else {
+          // Existing terminal — update the active WebSocket so output goes to the new client
+          terminal.activeWs = ws;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to create terminal';
@@ -129,12 +139,19 @@ export function createTerminalHandlers(
     },
 
     onClose() {
-      // Don't destroy the terminal on disconnect — it persists per shell_id
-      // The terminal is cleaned up when the session is destroyed
+      // Clear active WebSocket reference so output isn't sent to a closed connection
+      const terminal = activeTerminals.get(termKey);
+      if (terminal) {
+        terminal.activeWs = null;
+      }
     },
 
     onError(error: Event) {
       console.error(`Terminal WebSocket error for ${termKey}:`, error);
+      const terminal = activeTerminals.get(termKey);
+      if (terminal) {
+        terminal.activeWs = null;
+      }
     },
   };
 }

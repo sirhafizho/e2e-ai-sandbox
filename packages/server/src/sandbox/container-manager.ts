@@ -164,25 +164,29 @@ export class ContainerManager {
 
         const stdoutChunks: Buffer[] = [];
         const stderrChunks: Buffer[] = [];
+        let pendingBuf: Buffer = Buffer.alloc(0);
 
-        // Docker multiplexes stdout/stderr into a single stream with 8-byte headers
+        // Docker multiplexes stdout/stderr into a single stream with 8-byte headers.
+        // Chunks may arrive split across boundaries, so we buffer incomplete frames.
         stream.on('data', (chunk: Buffer) => {
-          // Parse the docker multiplex header
+          // Prepend any leftover from previous chunk
+          const buf: Buffer = pendingBuf.length > 0 ? Buffer.concat([pendingBuf, chunk]) : chunk;
           let offset = 0;
-          while (offset < chunk.length) {
-            if (offset + 8 > chunk.length) break;
-            const streamType = chunk[offset];
-            const size = chunk.readUInt32BE(offset + 4);
-            offset += 8;
-            if (offset + size > chunk.length) break;
-            const data = chunk.subarray(offset, offset + size);
+          while (offset < buf.length) {
+            if (offset + 8 > buf.length) break; // incomplete header
+            const streamType = buf[offset];
+            const size = buf.readUInt32BE(offset + 4);
+            if (offset + 8 + size > buf.length) break; // incomplete payload
+            const data = Buffer.from(buf.subarray(offset + 8, offset + 8 + size));
             if (streamType === 1) {
               stdoutChunks.push(data);
             } else if (streamType === 2) {
               stderrChunks.push(data);
             }
-            offset += size;
+            offset += 8 + size;
           }
+          // Keep any leftover bytes for next chunk
+          pendingBuf = offset < buf.length ? Buffer.from(buf.subarray(offset)) : Buffer.alloc(0);
         });
 
         stream.on('end', async () => {
@@ -363,6 +367,7 @@ export class ContainerManager {
 
     try {
       const reader = stream[Symbol.asyncIterator]();
+      let pendingBuf: Buffer = Buffer.alloc(0);
 
       while (true) {
         const result = (await Promise.race([
@@ -371,17 +376,19 @@ export class ContainerManager {
         ])) as IteratorResult<Buffer>;
         if (result.done) break;
 
-        const chunk = result.value;
+        const buf: Buffer = pendingBuf.length > 0
+          ? Buffer.concat([pendingBuf, result.value])
+          : result.value;
         let offset = 0;
-        while (offset < chunk.length) {
-          if (offset + 8 > chunk.length) break;
-          const size = chunk.readUInt32BE(offset + 4);
-          offset += 8;
-          if (offset + size > chunk.length) break;
-          const data = chunk.subarray(offset, offset + size);
+        while (offset < buf.length) {
+          if (offset + 8 > buf.length) break; // incomplete header
+          const size = buf.readUInt32BE(offset + 4);
+          if (offset + 8 + size > buf.length) break; // incomplete payload
+          const data = buf.subarray(offset + 8, offset + 8 + size);
           yield data.toString('utf-8');
-          offset += size;
+          offset += 8 + size;
         }
+        pendingBuf = offset < buf.length ? Buffer.from(buf.subarray(offset)) : Buffer.alloc(0);
       }
     } finally {
       if (timer) clearTimeout(timer);

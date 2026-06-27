@@ -6,15 +6,18 @@ import { createApp } from '../app.js';
 describe('Settings API', () => {
   let server: ReturnType<typeof serve>;
   let port: number;
+  let idleMonitor: { stop: () => void };
 
   before(() => {
-    const { app } = createApp(undefined, { dbPath: ':memory:' });
+    const result = createApp(undefined, { dbPath: ':memory:' });
+    idleMonitor = result.idleMonitor;
 
     port = 3400 + Math.floor(Math.random() * 600);
-    server = serve({ fetch: app.fetch, port });
+    server = serve({ fetch: result.app.fetch, port });
   });
 
   after(async () => {
+    idleMonitor.stop();
     server.close();
     await new Promise((resolve) => setTimeout(resolve, 500));
   });

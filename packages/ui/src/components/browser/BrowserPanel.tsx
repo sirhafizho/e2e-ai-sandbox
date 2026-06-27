@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Globe, RefreshCw, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { useSessionStore } from '../../lib/store.js';
 
 interface BrowserPanelProps {
@@ -9,7 +8,6 @@ interface BrowserPanelProps {
 export function BrowserPanel({ sessionId }: BrowserPanelProps) {
   const screenshot = useSessionStore((s) => s.browserScreenshot);
   const currentUrl = useSessionStore((s) => s.browserUrl);
-  const [loading] = useState(false);
 
   if (!sessionId) {
     return (
@@ -22,17 +20,8 @@ export function BrowserPanel({ sessionId }: BrowserPanelProps) {
 
   return (
     <div className="flex h-full flex-col bg-zinc-950">
-      {/* URL bar */}
+      {/* URL bar (read-only — shows current agent browser location) */}
       <div className="flex items-center gap-1 border-b border-zinc-800 bg-zinc-900/50 px-2 py-1">
-        <button className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300" title="Back">
-          <ArrowLeft className="h-3 w-3" />
-        </button>
-        <button className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300" title="Forward">
-          <ArrowRight className="h-3 w-3" />
-        </button>
-        <button className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300" title="Refresh">
-          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-        </button>
         <div className="flex flex-1 items-center gap-1.5 rounded bg-zinc-800 px-2 py-1">
           <Globe className="h-3 w-3 text-zinc-500" />
           <span className="flex-1 truncate text-xs text-zinc-400">

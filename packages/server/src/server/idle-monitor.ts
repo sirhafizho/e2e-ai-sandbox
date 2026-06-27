@@ -12,7 +12,7 @@ import type { ContainerManager } from '../sandbox/container-manager.js';
 export interface IdleMonitorConfig {
   /** Idle timeout in milliseconds (default: 60 minutes). */
   idleTimeoutMs?: number;
-  /** Minutes before timeout to send a warning (default: 55 min into 60 min = 5 min before). */
+  /** Minutes before idle timeout to send a warning (default: 5 min before). */
   warningMinutes?: number;
   /** Time after pause before container is destroyed (default: 24 hours). */
   destroyAfterMs?: number;
@@ -56,7 +56,8 @@ export class IdleMonitor {
     this.sessions = sessions;
 
     this.idleTimeoutMs = config?.idleTimeoutMs ?? 60 * 60 * 1000; // 60 min
-    this.warningMs = (config?.warningMinutes ?? 55) * 60 * 1000;  // 55 min
+    const warningBeforeMs = (config?.warningMinutes ?? 5) * 60 * 1000; // 5 min before timeout
+    this.warningMs = this.idleTimeoutMs - warningBeforeMs;            // start warning at this idle time
     this.destroyAfterMs = config?.destroyAfterMs ?? 24 * 60 * 60 * 1000; // 24 hours
     this.checkIntervalMs = config?.checkIntervalMs ?? 60 * 1000; // 1 min
   }

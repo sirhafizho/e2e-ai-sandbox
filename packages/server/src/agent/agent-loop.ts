@@ -375,6 +375,9 @@ export class AgentLoop {
     let currentText = '';
 
     for await (const part of result.stream) {
+      // Check abort signal between stream events
+      if (options?.abortSignal?.aborted) break;
+
       switch (part.type) {
         case 'text-delta': {
           currentText += part.text;
@@ -386,12 +389,18 @@ export class AgentLoop {
         }
 
         case 'tool-call': {
+          let inputSummary = '';
+          try {
+            inputSummary = JSON.stringify(part.input).slice(0, 200);
+          } catch {
+            inputSummary = '[non-serializable input]';
+          }
           yield {
             type: 'tool_start',
             data: {
               callId: part.toolCallId,
               toolName: part.toolName,
-              inputSummary: JSON.stringify(part.input).slice(0, 200),
+              inputSummary,
             },
           };
           break;
