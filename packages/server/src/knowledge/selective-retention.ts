@@ -20,14 +20,20 @@ export const RETENTION_RULES: Record<string, RetentionPriority> = {
   'tool_outputs': 'low',
 };
 
-/** Maximum lines for truncated file content. */
+/** Maximum lines for truncated file content (per side: head/tail). */
 const MAX_FILE_LINES = 50;
+/** Reduced file content lines for small models. */
+const SMALL_MODEL_FILE_HEAD = 30;
+const SMALL_MODEL_FILE_TAIL = 20;
 
 /** Maximum lines for truncated shell output. */
 const MAX_SHELL_LINES = 50;
 
 /** Maximum length for individual tool output strings. */
 const MAX_TOOL_OUTPUT_LENGTH = 2000;
+
+/** Maximum grep matches to keep for small models. */
+const SMALL_MODEL_MAX_GREP_LINES = 20;
 
 /**
  * SelectiveRetention — strategies for intelligently trimming context.
@@ -181,6 +187,137 @@ export class SelectiveRetention {
     parts.push(...lastLines);
 
     return parts.join('\n');
+  }
+
+  /**
+   * Model-size-aware compression for tool outputs.
+   * Small models get more aggressive compression to save context tokens.
+   */
+  compressForModel(
+    output: unknown,
+    toolName: string,
+    exitCode: number,
+    smallModel: boolean,
+  ): unknown {
+    if (!smallModel) {
+      return this.truncateToolOutput(output);
+    }
+
+    if (typeof output !== 'string') {
+      return this.truncateToolOutput(output);
+    }
+
+    switch (toolName) {
+      case 'shell_exec':
+        return this.compressShellForSmallModel(output, exitCode);
+      case 'file_read':
+        return this.compressFileForSmallModel(output);
+      case 'grep':
+        return this.compressGrepForSmallModel(output);
+      default:
+        return this.truncateToolOutput(output);
+    }
+  }
+
+  /**
+   * Compress shell output for small models.
+   * Success: last 20 lines. Failure: first 5 + last 20 + error lines.
+   */
+  private compressShellForSmallModel(output: string, exitCode: number): string {
+    // Try smart extraction for known tool outputs first
+    const smartSummary = this.extractShellSummary(output);
+    if (smartSummary) return smartSummary;
+
+    const lines = output.split('\n');
+    if (lines.length <= 20) return output;
+
+    if (exitCode === 0) {
+      return `[... ${lines.length - 20} lines omitted ...]\n` + lines.slice(-20).join('\n');
+    }
+
+    // Failure: head + tail + error lines
+    const head = lines.slice(0, 5);
+    const tail = lines.slice(-20);
+    const errorLines = lines.filter((l) => /error|fail|exception|warn/i.test(l)).slice(0, 10);
+
+    const parts: string[] = [];
+    parts.push(...head);
+    if (errorLines.length > 0) {
+      parts.push('[Extracted errors:]');
+      parts.push(...errorLines);
+    }
+    parts.push(`[... last 20 of ${lines.length} lines:]`);
+    parts.push(...tail);
+    return parts.join('\n');
+  }
+
+  /**
+   * Compress file reads for small models (30 head + 20 tail).
+   */
+  private compressFileForSmallModel(output: string): string {
+    const lines = output.split('\n');
+    if (lines.length <= SMALL_MODEL_FILE_HEAD + SMALL_MODEL_FILE_TAIL) return output;
+
+    const head = lines.slice(0, SMALL_MODEL_FILE_HEAD);
+    const tail = lines.slice(-SMALL_MODEL_FILE_TAIL);
+    const omitted = lines.length - SMALL_MODEL_FILE_HEAD - SMALL_MODEL_FILE_TAIL;
+    return [...head, `\n[... ${omitted} lines omitted ...]\n`, ...tail].join('\n');
+  }
+
+  /**
+   * Compress grep results for small models (first 20 matches).
+   */
+  private compressGrepForSmallModel(output: string): string {
+    const lines = output.split('\n');
+    if (lines.length <= SMALL_MODEL_MAX_GREP_LINES) return output;
+    return lines.slice(0, SMALL_MODEL_MAX_GREP_LINES).join('\n')
+      + `\n[... ${lines.length - SMALL_MODEL_MAX_GREP_LINES} more matches omitted]`;
+  }
+
+  /**
+   * Extract a structured summary from known shell command outputs.
+   * Returns null if the output doesn't match any known pattern.
+   */
+  private extractShellSummary(output: string): string | null {
+    // npm/pnpm install
+    if (/added \d+ package/i.test(output) || /packages are looking for funding/i.test(output)) {
+      const addedMatch = output.match(/added (\d+) package/i);
+      const vulnMatch = output.match(/(\d+) vulnerabilit/i);
+      const parts = [];
+      if (addedMatch) parts.push(`${addedMatch[1]} packages installed`);
+      if (vulnMatch) parts.push(`${vulnMatch[1]} vulnerabilities`);
+      else parts.push('0 vulnerabilities');
+      return parts.join(', ');
+    }
+
+    // Test runners (vitest, jest, mocha)
+    if (/Tests?:?\s+\d+\s+(passed|failed)/i.test(output) ||
+        /Test Suites?:?\s+\d+/i.test(output) ||
+        /✓|✗|PASS|FAIL/i.test(output)) {
+      const lines = output.split('\n');
+      // Keep summary lines (usually near the end)
+      const summaryLines = lines.filter((l) =>
+        /Tests?:?\s+\d+/i.test(l) || /Test Suites?:/i.test(l) ||
+        /passed|failed|pending/i.test(l) || /FAIL\s/i.test(l),
+      ).slice(0, 5);
+      // Keep failed test details
+      const failLines = lines.filter((l) =>
+        /FAIL|✗|×|Error:|AssertionError/i.test(l),
+      ).slice(0, 5);
+      return [...new Set([...summaryLines, ...failLines])].join('\n') || null;
+    }
+
+    // TypeScript compilation errors
+    if (/error TS\d+/i.test(output)) {
+      const lines = output.split('\n');
+      const errorLines = lines.filter((l) => /error TS\d+/i.test(l)).slice(0, 5);
+      const totalErrors = errorLines.length;
+      const summaryMatch = output.match(/Found (\d+) error/i);
+      const summary = summaryMatch ? `Build failed: ${summaryMatch[1]} errors` : `Build failed: ${totalErrors}+ errors`;
+      return [summary, ...errorLines].join('\n');
+    }
+
+    return null;
   }
 
   /**

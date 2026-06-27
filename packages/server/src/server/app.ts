@@ -6,7 +6,7 @@ import { ToolRegistry } from '../tools/registry.js';
 import { registerBuiltinTools } from '../tools/register-builtins.js';
 import { createProvider } from '../llm/provider.js';
 import { AgentLoop } from '../agent/agent-loop.js';
-import { TokenBudget } from '../agent/token-budget.js';
+import { TokenBudget, isSmallModel } from '../agent/token-budget.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';
 import { createWsHandlers } from './ws-handler.js';
 import { createTerminalHandlers, destroySessionTerminals } from './terminal-handler.js';
@@ -25,6 +25,7 @@ import { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
 import { RepoMapGenerator } from '../knowledge/repo-map-generator.js';
 import { CheckpointManager } from '../knowledge/checkpoint-manager.js';
 import { IdleMonitor } from './idle-monitor.js';
+import { NoteSuggester } from '../knowledge/note-suggester.js';
 import type { LLMProviderConfig } from '@forge/shared';
 import { CreateKnowledgeNoteInput as CreateNoteSchema } from '@forge/shared';
 import { z } from 'zod';
@@ -89,6 +90,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     repoMapStore,
     containerManager,
   });
+
+  // Note suggestion (auto-learns from conversations)
+  const noteSuggester = new NoteSuggester(knowledgeStore);
 
   // In-memory state for active sessions (runtime-only data like agentLoop)
   const sessions = new Map<string, SessionState>();
@@ -192,11 +196,32 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     const sessionId = `ses_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
+      // Fetch secrets to inject as environment variables
+      const repoScope = repo_url ?? 'global';
+      const globalSecrets = secretsStore.listByRepo('global');
+      const repoSecrets = repoScope !== 'global'
+        ? secretsStore.listByRepo(repoScope)
+        : [];
+
+      // Merge: repo-scoped secrets override global ones with the same key
+      const secretsMap = new Map<string, string>();
+      for (const s of globalSecrets) secretsMap.set(s.key, s.value);
+      for (const s of repoSecrets) secretsMap.set(s.key, s.value);
+
+      const envVars = Array.from(secretsMap.entries()).map(
+        ([key, value]) => `${key}=${value}`,
+      );
+
+      if (envVars.length > 0) {
+        console.log('Injecting secrets:', envVars.map((e) => e.split('=')[0]));
+      }
+
       const containerInfo = await containerManager.create({
         sessionId,
         image: serverSettings.docker.image !== 'forge-sandbox:base' ? serverSettings.docker.image : undefined,
         cpuLimit: serverSettings.docker.cpuLimit,
         memoryLimit: serverSettings.docker.memoryLimitGb * 1024 * 1024 * 1024,
+        env: envVars.length > 0 ? envVars : undefined,
       });
 
       // Run health check
@@ -297,6 +322,13 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     const dbSessions = sessionStore.list();
     const sessionList = dbSessions.map((row) => {
       const live = sessions.get(row.id);
+      let messageCount = 0;
+      if (row.history_json) {
+        try {
+          const history = JSON.parse(row.history_json);
+          messageCount = Array.isArray(history) ? history.length : 0;
+        } catch { /* ignore parse errors */ }
+      }
       return {
         id: row.id,
         status: live?.status ?? row.status,
@@ -305,6 +337,8 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         created_at: row.created_at,
         updated_at: row.updated_at,
         last_active_at: row.last_active_at,
+        message_count: messageCount,
+        context_summary: row.context_summary ?? null,
       };
     });
     return c.json({ sessions: sessionList, total: sessionList.length });
@@ -467,6 +501,52 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     }
   });
 
+  // Write file content to sandbox container
+  app.put('/api/sessions/:id/files/write', async (c) => {
+    const id = c.req.param('id');
+    const session = sessions.get(id);
+    if (!session) {
+      return c.json({ error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } }, 404);
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const { path, content } = body as { path?: string; content?: string };
+
+    if (!path || content === undefined) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'path and content are required' } }, 400);
+    }
+
+    // Path traversal protection
+    if (!path.startsWith('/workspace') || path.includes('..')) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Path must be within /workspace and cannot contain ..' } }, 400);
+    }
+
+    try {
+      // Use base64 encoding for robust content transfer (avoids heredoc issues)
+      const base64Content = Buffer.from(content, 'utf-8').toString('base64');
+      const writeResult = await containerManager.exec(
+        session.containerId,
+        `echo '${base64Content}' | base64 -d > ${JSON.stringify(path)}`,
+        { timeoutMs: 10_000 },
+      );
+
+      if (writeResult.exitCode !== 0) {
+        return c.json({
+          error: { code: 'FILE_WRITE_ERROR', message: writeResult.stderr || 'Failed to write file' },
+        }, 500);
+      }
+
+      return c.json({ success: true, path });
+    } catch (err) {
+      return c.json({
+        error: {
+          code: 'EXEC_ERROR',
+          message: err instanceof Error ? err.message : 'Failed to write file',
+        },
+      }, 500);
+    }
+  });
+
   // List tools
   app.get('/api/tools', (c) => {
     const tools = toolRegistry.list().map((t) => ({
@@ -544,9 +624,13 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         model: session.model,
       };
       const model = createProvider(providerConfig);
+      const tokenBudget = isSmallModel(session.model)
+        ? TokenBudget.forSmallModel(session.model)
+        : TokenBudget.forModel(session.model);
       session.agentLoop = new AgentLoop(model, toolRegistry, containerManager, {
-        tokenBudget: TokenBudget.forModel(session.model),
+        tokenBudget,
         checkpointManager: new CheckpointManager(checkpointStore),
+        modelName: session.model,
       });
     }
 
@@ -571,6 +655,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         toolNames: toolSpecs.map((t) => t.name),
         sessionId: session.id,
         knowledgeContext: knowledgeContext || undefined,
+        isSmallModel: isSmallModel(session.model),
       });
 
       const events: unknown[] = [];
@@ -850,6 +935,7 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
           checkpointStore,
           knowledgeInjector,
           wsConnections,
+          noteSuggester,
         });
       }),
     );

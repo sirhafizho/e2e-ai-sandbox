@@ -10,6 +10,8 @@ import { ParallelDispatch } from './parallel-dispatch.js';
 import { estimateSystemTokens } from './token-estimator.js';
 import { withRetry } from './error-recovery.js';
 import type { CheckpointManager } from '../knowledge/checkpoint-manager.js';
+import { filterToolsForSmallModel } from './tool-filter.js';
+import { isSmallModel as checkSmallModel } from './token-budget.js';
 
 const MAX_STEPS = 25;
 
@@ -23,6 +25,8 @@ export interface AgentLoopOptions {
   maxParallelToolCalls?: number;
   /** Disable retry logic (useful for testing). */
   disableRetry?: boolean;
+  /** Model name for small model detection and tuning. */
+  modelName?: string;
 }
 
 export class AgentLoop {
@@ -35,6 +39,8 @@ export class AgentLoop {
   private checkpointManager: CheckpointManager | null;
   private parallelDispatch: ParallelDispatch;
   private disableRetry: boolean;
+  /** Whether the current model is a small model (7B/8B/3B). */
+  private smallModel: boolean;
   /** The most recent user message, used for checkpoint creation. */
   private lastUserMessage: string = '';
   /** Queue for error recovery events emitted during tool execution callbacks. */
@@ -55,6 +61,7 @@ export class AgentLoop {
     this.checkpointManager = options?.checkpointManager ?? null;
     this.parallelDispatch = new ParallelDispatch(options?.maxParallelToolCalls ?? 10);
     this.disableRetry = options?.disableRetry ?? false;
+    this.smallModel = options?.modelName ? checkSmallModel(options.modelName) : false;
   }
 
   /** Get the conversation history for inspection or persistence. */
@@ -198,6 +205,60 @@ export class AgentLoop {
   }
 
   /**
+   * Build a micro-step hint from the response messages.
+   * Helps small models stay on track between turns by summarizing
+   * what just happened and what to do next. < 50 tokens.
+   */
+  private buildStepHint(responseMessages: import('ai').ModelMessage[]): string | null {
+    // Find the last tool result in the response
+    let lastToolName: string | null = null;
+    let hadError = false;
+
+    for (const msg of responseMessages) {
+      if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (typeof part === 'object' && part !== null && 'toolName' in part) {
+            lastToolName = (part as { toolName: string }).toolName;
+          }
+        }
+      }
+      if (msg.role === 'tool' && Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (typeof part === 'object' && part !== null && 'result' in part) {
+            const result = (part as { result: unknown }).result;
+            if (typeof result === 'object' && result !== null && 'exitCode' in result) {
+              hadError = (result as { exitCode: number }).exitCode !== 0;
+            }
+          }
+        }
+      }
+    }
+
+    if (!lastToolName) return null;
+
+    // Skip hints for simple read/search operations (model needs to process content, not be told what to do)
+    if (['file_read', 'grep', 'find_files'].includes(lastToolName) && !hadError) {
+      return null;
+    }
+
+    const parts: string[] = [];
+
+    if (hadError) {
+      parts.push(`[${lastToolName} failed. Check the error and try a different approach.]`);
+    } else {
+      parts.push(`[${lastToolName} completed. What's the next step?]`);
+    }
+
+    const todos = this.todoTracker.list();
+    if (todos.length > 0) {
+      const done = todos.filter((t) => t.status === 'completed').length;
+      parts.push(`Todos: ${done}/${todos.length} done`);
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
    * Build a simple extractive summary from conversation content.
    * This is a fallback for when no LLM summarization is available.
    * Keeps the first/last lines and key markers.
@@ -220,7 +281,11 @@ export class AgentLoop {
     sessionContext: SessionContext,
     options?: { abortSignal?: AbortSignal },
   ): AsyncGenerator<AgentEvent> {
-    const toolSpecs = this.toolRegistry.list();
+    const allToolSpecs = this.toolRegistry.list();
+    // Filter tool definitions for small models to save tokens and reduce confusion
+    const toolSpecs = this.smallModel
+      ? filterToolsForSmallModel(allToolSpecs)
+      : allToolSpecs;
     const systemPrompt =
       sessionContext.systemPrompt ??
       buildSystemPrompt({
@@ -388,6 +453,14 @@ export class AgentLoop {
     // and append to history for the next turn
     const responseMessages = await result.responseMessages;
     this.history.addResponseMessages(responseMessages);
+
+    // Inject micro-step hint for small models so the next turn has context
+    if (this.smallModel) {
+      const hint = this.buildStepHint(responseMessages);
+      if (hint) {
+        this.history.addSystemMessage(hint);
+      }
+    }
 
     // Post-turn budget check — emit updated status
     if (this.tokenBudget) {

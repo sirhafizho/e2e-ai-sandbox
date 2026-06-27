@@ -31,6 +31,7 @@ export class ContainerManager {
       memoryLimit = DEFAULT_MEMORY_LIMIT,
       pidLimit = DEFAULT_PID_LIMIT,
       sessionId,
+      env,
     } = options;
 
     const binds: string[] = [];
@@ -60,6 +61,7 @@ export class ContainerManager {
         ...(sessionId ? { 'forge.session': sessionId } : {}),
         ...(volumeName ? { 'forge.volume': volumeName } : {}),
       },
+      Env: env && env.length > 0 ? env : undefined,
       WorkingDir: '/workspace',
       User: 'forge',
       HostConfig: {

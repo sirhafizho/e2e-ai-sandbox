@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { FolderTree, File, Folder, FolderOpen, ChevronRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { FolderTree, File, Folder, FolderOpen, ChevronRight, ChevronDown, RefreshCw, Save } from 'lucide-react';
 import type { EditorView } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
+import { api } from '../../lib/api.js';
 
 interface FilePanelProps {
   sessionId: string | null;
@@ -59,6 +60,8 @@ export function FilePanel({ sessionId }: FilePanelProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [modified, setModified] = useState(false);
+  const [saving, setSaving] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
@@ -98,6 +101,20 @@ export function FilePanel({ sessionId }: FilePanelProps) {
     setTree(files ?? []);
   }, [sessionId]);
 
+  const handleSave = useCallback(async () => {
+    if (!sessionId || !selectedFile || !viewRef.current) return;
+    setSaving(true);
+    try {
+      const content = viewRef.current.state.doc.toString();
+      await api.sessions.writeFile(sessionId, selectedFile, content);
+      setModified(false);
+    } catch (err) {
+      console.error('Failed to save file:', err);
+    } finally {
+      setSaving(false);
+    }
+  }, [sessionId, selectedFile]);
+
   useEffect(() => {
     if (sessionId) {
       loadRoot();
@@ -119,7 +136,7 @@ export function FilePanel({ sessionId }: FilePanelProps) {
     // Dynamically import CodeMirror core + theme, then create editor
     (async () => {
       const [
-        { EditorView: EV },
+        { EditorView: EV, keymap },
         { EditorState: ES },
         { oneDark },
         langExt,
@@ -133,8 +150,7 @@ export function FilePanel({ sessionId }: FilePanelProps) {
       if (cancelled || !editorRef.current) return;
 
       const extensions = [
-        EV.editable.of(false),
-        ES.readOnly.of(true),
+        EV.editable.of(true),
         oneDark,
         EV.lineWrapping,
         EV.theme({
@@ -144,10 +160,18 @@ export function FilePanel({ sessionId }: FilePanelProps) {
           '.cm-activeLineGutter': { backgroundColor: 'transparent' },
           '.cm-content': { padding: '8px 0' },
         }),
+        EV.updateListener.of((update) => {
+          if (update.docChanged) setModified(true);
+        }),
+        keymap.of([{
+          key: 'Mod-s',
+          run: () => { handleSave(); return true; },
+        }]),
       ];
 
       if (langExt) extensions.push(langExt);
 
+      setModified(false);
       const state = ES.create({ doc: fileContent, extensions });
       viewRef.current = new EV({ state, parent: editorRef.current });
     })();
@@ -159,7 +183,7 @@ export function FilePanel({ sessionId }: FilePanelProps) {
         viewRef.current = null;
       }
     };
-  }, [fileContent, selectedFile, loading]);
+  }, [fileContent, selectedFile, loading, handleSave]);
 
   if (!sessionId) {
     return (
@@ -209,8 +233,24 @@ export function FilePanel({ sessionId }: FilePanelProps) {
         <div className="flex-1 overflow-hidden">
           {selectedFile ? (
             <div className="flex h-full flex-col">
-              <div className="border-b border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400">
-                {selectedFile}
+              <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400">
+                <div className="flex items-center gap-1.5">
+                  <span>{selectedFile}</span>
+                  {modified && (
+                    <span className="h-2 w-2 rounded-full bg-yellow-400" title="Unsaved changes" />
+                  )}
+                </div>
+                {modified && (
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-1 rounded px-2 py-0.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+                    title="Save (Cmd+S)"
+                  >
+                    <Save className="h-3 w-3" />
+                    <span>{saving ? 'Saving...' : 'Save'}</span>
+                  </button>
+                )}
               </div>
               {loading ? (
                 <div className="flex flex-1 items-center justify-center text-xs text-zinc-600">

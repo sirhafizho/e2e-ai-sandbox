@@ -2,7 +2,7 @@ import type { WSContext } from 'hono/ws';
 import type { ServerWebSocketEvent, ClientWebSocketEvent } from '@forge/shared';
 import { ClientWebSocketEvent as ClientEventSchema } from '@forge/shared';
 import { AgentLoop } from '../agent/agent-loop.js';
-import { TokenBudget } from '../agent/token-budget.js';
+import { TokenBudget, isSmallModel } from '../agent/token-budget.js';
 import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { createProvider } from '../llm/provider.js';
@@ -12,6 +12,7 @@ import type { SettingsStore } from '../db/settings-store.js';
 import type { CheckpointStore } from '../db/checkpoint-store.js';
 import type { KnowledgeInjector } from '../knowledge/knowledge-injector.js';
 import { CheckpointManager } from '../knowledge/checkpoint-manager.js';
+import type { NoteSuggester } from '../knowledge/note-suggester.js';
 import type { LLMProviderConfig } from '@forge/shared';
 
 interface SessionState {
@@ -33,6 +34,7 @@ interface WsSessionDeps {
   checkpointStore?: CheckpointStore;
   knowledgeInjector?: KnowledgeInjector;
   wsConnections?: Map<string, { send: (data: string) => void }>;
+  noteSuggester?: NoteSuggester;
 }
 
 /**
@@ -119,11 +121,15 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
               model: session.model,
             };
             const model = createProvider(providerConfig);
+            const tokenBudget = isSmallModel(session.model)
+              ? TokenBudget.forSmallModel(session.model)
+              : TokenBudget.forModel(session.model);
             session.agentLoop = new AgentLoop(model, deps.toolRegistry, deps.containerManager, {
-              tokenBudget: TokenBudget.forModel(session.model),
+              tokenBudget,
               checkpointManager: deps.checkpointStore
                 ? new CheckpointManager(deps.checkpointStore)
                 : undefined,
+              modelName: session.model,
             });
           }
 
@@ -156,6 +162,7 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                 toolNames: toolSpecs.map((t) => t.name),
                 sessionId: session.id,
                 knowledgeContext: knowledgeContext || undefined,
+                isSmallModel: isSmallModel(session.model),
               });
             }
 
@@ -322,6 +329,37 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                 deps.sessionStore.touchActivity(session.id);
               } catch {
                 // Best-effort persistence — don't crash the WS handler
+              }
+            }
+
+            // Run note suggestion after conversation turn
+            if (deps.noteSuggester && session.agentLoop) {
+              try {
+                const history = session.agentLoop.getHistory();
+                const messages = history.getMessages().map((m) => ({
+                  role: m.role,
+                  content: typeof m.content === 'string' ? m.content : '',
+                }));
+                const repoScope = session.repo ?? 'global';
+                const suggestions = deps.noteSuggester.suggest(messages, repoScope);
+
+                // Auto-approve high-confidence suggestions
+                for (const suggestion of suggestions) {
+                  if (suggestion.confidence > 0.7) {
+                    deps.noteSuggester.approve(suggestion);
+                  }
+                }
+
+                // Emit lower-confidence suggestions to UI
+                const pending = suggestions.filter((s) => s.confidence <= 0.7);
+                if (pending.length > 0) {
+                  send(ws, {
+                    type: 'note_suggestions' as ServerWebSocketEvent['type'],
+                    suggestions: pending,
+                  } as unknown as ServerWebSocketEvent);
+                }
+              } catch (err) {
+                console.error('NoteSuggester failed:', err);
               }
             }
           }

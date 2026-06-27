@@ -13,6 +13,8 @@ export interface CreateContainerOptions {
   pidLimit?: number;
   /** Session ID for labeling and volume naming */
   sessionId?: string;
+  /** Environment variables as 'KEY=VALUE' strings to inject into the container */
+  env?: string[];
 }
 
 export interface ContainerInfo {

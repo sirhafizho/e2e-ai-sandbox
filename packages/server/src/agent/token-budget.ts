@@ -74,6 +74,19 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
 /** Default context window when model is unknown. */
 const DEFAULT_CONTEXT_WINDOW = 32_768;
 
+/** Effective context ceiling for small models (quality degrades past this). */
+const SMALL_MODEL_EFFECTIVE_CONTEXT = 16_384;
+
+/**
+ * Check if a model is "small" (7B/8B/3B class) and needs tighter context management.
+ * Small models have large theoretical context windows but quality degrades sharply
+ * past ~8-16K tokens, so we constrain the effective budget.
+ */
+export function isSmallModel(modelName: string): boolean {
+  const lower = modelName.toLowerCase();
+  return lower.includes('3b') || lower.includes('7b') || lower.includes('8b');
+}
+
 /**
  * Look up the context window size for a model identifier.
  * Falls back to DEFAULT_CONTEXT_WINDOW for unknown models.
@@ -113,6 +126,20 @@ export class TokenBudget {
     return new TokenBudget({
       contextWindow: getModelContextWindow(model),
       ...overrides,
+    });
+  }
+
+  /**
+   * Create a TokenBudget tuned for small models (7B/8B/3B).
+   * Uses a 16K effective context ceiling and more aggressive thresholds
+   * so summarization/checkpointing kicks in much sooner.
+   */
+  static forSmallModel(_model: string): TokenBudget {
+    return new TokenBudget({
+      contextWindow: SMALL_MODEL_EFFECTIVE_CONTEXT,
+      warningThreshold: 0.50,
+      criticalThreshold: 0.70,
+      emergencyThreshold: 0.85,
     });
   }
 

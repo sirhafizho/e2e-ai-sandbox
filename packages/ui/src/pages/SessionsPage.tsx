@@ -12,11 +12,12 @@ export function SessionsPage() {
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
 
-  const { data: sessions, isLoading, error } = useQuery({
+  const { data: sessionsData, isLoading, error } = useQuery({
     queryKey: ['sessions'],
     queryFn: api.sessions.list,
     refetchInterval: 10_000,
   });
+  const sessions = sessionsData?.sessions;
 
   const createMutation = useMutation({
     mutationFn: (opts?: CreateSessionOptions) => api.sessions.create(opts),
@@ -165,13 +166,7 @@ function SessionCard({
   }[session.status] ?? 'text-zinc-400 bg-zinc-400/10';
 
   const created = new Date(session.created_at).toLocaleString();
-  const historyCount = (() => {
-    try {
-      return (JSON.parse(session.history_json) as unknown[]).length;
-    } catch {
-      return 0;
-    }
-  })();
+  const historyCount = session.message_count ?? 0;
 
   return (
     <div className="flex items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 transition-colors hover:border-zinc-700">

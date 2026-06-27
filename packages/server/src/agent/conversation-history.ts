@@ -45,6 +45,11 @@ export class ConversationHistory {
     this.messages.push({ role: 'user', content });
   }
 
+  /** Add a system message to history (used for micro-step hints). */
+  addSystemMessage(content: string): void {
+    this.messages.push({ role: 'system', content });
+  }
+
   /**
    * Add assistant response messages to history.
    * These come from streamText().responseMessages and may include

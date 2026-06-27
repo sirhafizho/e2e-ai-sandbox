@@ -9,7 +9,7 @@ export interface SessionInfo {
   updated_at: string;
   last_active_at: string;
   context_summary: string | null;
-  history_json: string;
+  message_count: number;
 }
 
 export interface CreateSessionOptions {
@@ -58,7 +58,7 @@ export interface ServerSettings {
 
 export const api = {
   sessions: {
-    list: () => request<SessionInfo[]>('/sessions'),
+    list: () => request<{ sessions: SessionInfo[]; total: number }>('/sessions'),
     get: (id: string) => request<SessionInfo>(`/sessions/${id}`),
     create: (opts?: CreateSessionOptions) =>
       request<SessionInfo>('/sessions', {
@@ -71,6 +71,11 @@ export const api = {
       request<SessionInfo>(`/sessions/${id}/resume`, { method: 'POST' }),
     messages: (id: string) =>
       request<MessageHistoryResponse>(`/sessions/${id}/messages`),
+    writeFile: (id: string, path: string, content: string) =>
+      request<{ success: boolean; path: string }>(`/sessions/${id}/files/write`, {
+        method: 'PUT',
+        body: JSON.stringify({ path, content }),
+      }),
   },
   settings: {
     get: () => request<{ settings: ServerSettings }>('/settings'),
