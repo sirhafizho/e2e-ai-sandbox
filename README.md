@@ -4,7 +4,7 @@
 
 Give any LLM — local or cloud — a complete development environment with shell, filesystem, browser, and git inside Docker containers. Run your own Devin-like agent on your PC with Ollama, or host it on a VPS for your team.
 
-> **Status:** Pre-implementation (specs complete, entering BMAD Phase 2 — Planning). Contributions welcome!
+> **Status:** Phase 5 — Manual Testing & Hardening. Core implementation complete (agent loop, 20+ tools, Web UI, knowledge system, snapshots). 479 tests passing, 66 bugs fixed across 11 audit rounds.
 
 ---
 
@@ -134,16 +134,15 @@ Handles long tasks without hitting token limits:
 
 ## Quick Start
 
-> **Note:** Implementation is in progress. These commands represent the target UX.
-
 ### Prerequisites
 - Docker Desktop (or Docker Engine on Linux)
-- Node.js 22+
+- Node.js 20+
+- pnpm 9+
 - An LLM provider:
-  - **Local:** [Ollama](https://ollama.ai) with a coding model (`ollama pull qwen2.5-coder:27b`)
-  - **Cloud:** API key for OpenAI, Anthropic, or OpenRouter
+  - **Local:** [Ollama](https://ollama.ai) with a coding model (`ollama pull qwen2.5-coder:7b`)
+  - **Cloud:** API key for OpenAI, Anthropic, or any OpenAI-compatible endpoint
 
-### Install
+### Install & Run
 
 ```bash
 # Clone the repo
@@ -156,16 +155,20 @@ pnpm install
 # Build the sandbox Docker image
 pnpm run sandbox:build
 
-# Start the server + UI
+# Start the server + UI (dev mode)
 pnpm run dev
-```
-
-### Using Docker Compose (Simplest)
-
-```bash
-docker compose up
 # Open http://localhost:3000
 ```
+
+### Web UI
+
+The web UI is the primary interface. Open `http://localhost:3000` after starting the dev server:
+- **Create a session** — picks your configured LLM and boots a Docker sandbox
+- **Chat** — send messages, watch the agent plan and execute in real-time
+- **Terminal** — live terminal access to the sandbox container
+- **Browser** — see screenshots of web pages the agent visits
+- **Files** — browse and edit files in the workspace
+- **Settings** — configure LLM provider, model, Docker limits
 
 ### CLI Mode
 
@@ -174,34 +177,36 @@ docker compose up
 forge chat "set up a new Express API with TypeScript and write tests"
 
 # Use a specific model
-forge chat --model ollama/qwen2.5-coder:27b "fix the auth bug in src/auth.ts"
+forge chat --model ollama/qwen2.5-coder:7b "fix the auth bug in src/auth.ts"
 
 # Use a snapshot
 forge chat --snapshot my-project "add dark mode to the settings page"
+
+# Check everything works
+forge doctor
 ```
 
-## Configuration
+### Configuration (via UI or CLI)
+
+Configure your LLM provider through the **Settings** page in the Web UI, or via CLI:
 
 ```bash
-# Set your LLM provider
 forge config set llm.provider ollama
-forge config set llm.model qwen2.5-coder:27b
+forge config set llm.model qwen2.5-coder:7b
 
 # Or use cloud providers
 forge config set llm.provider openai
 forge config set llm.api_key sk-...
-
-# Check everything works
-forge doctor
 ```
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| Agent server | TypeScript, Node.js, Fastify/Hono |
-| Web UI | React, Vite, xterm.js, Monaco Editor |
-| Database | SQLite (zero-config) |
+| Agent server | TypeScript, Node.js, Hono |
+| LLM integration | Vercel AI SDK (unified streaming, Zod-native tools) |
+| Web UI | React, Vite, xterm.js, CodeMirror 6 |
+| Database | SQLite via better-sqlite3 (zero-config) |
 | Docker SDK | dockerode |
 | Browser automation | Playwright (inside container) |
 | Package manager | pnpm (monorepo) |
@@ -231,15 +236,35 @@ e2e-ai-sandbox/
 └── LICENSE              # MIT
 ```
 
+## Development
+
+### Verification
+
+```bash
+pnpm run typecheck    # TypeScript checks across all packages
+pnpm run test         # 479+ tests (server + container integration)
+pnpm run build        # Full production build
+```
+
+### Monorepo Structure
+
+| Package | Description |
+|---------|-------------|
+| `packages/server` | Agent server — loop, tools, LLM, DB, knowledge, snapshots |
+| `packages/ui` | React web UI — chat, terminal, browser, files, settings |
+| `packages/shared` | Shared TypeScript types and Zod schemas |
+| `packages/sandbox` | Dockerfile for sandbox container image |
+
 ## Roadmap
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| **1. Foundation** | Docker sandbox, core tools, LLM provider, CLI agent loop | Planned |
-| **2. Persistence** | Multi-turn conversations, snapshots, git/browser tools | Planned |
-| **3. Web UI** | Chat, terminal, browser, file panels | Planned |
-| **4. Knowledge** | Notes, rules, session history, repo maps, context management | Planned |
-| **5. Distribution** | Docker Compose, docs, multi-session, plugins, auth | Planned |
+| **1. Foundation** | Docker sandbox, core tools, LLM provider, CLI agent loop | Done |
+| **2. Persistence** | Multi-turn conversations, snapshots, git/browser tools | Done |
+| **3. Web UI** | Chat, terminal, browser, file panels, settings | Done |
+| **4. Knowledge** | Notes, rules, session history, repo maps, context management, checkpoints | Done |
+| **5. Hardening** | Manual testing, stress testing, E2E auditing (66 bugs fixed) | **In Progress** |
+| **6. Distribution** | Docker Compose, docs, multi-session, plugins, auth | Planned |
 
 See [TODO.md](TODO.md) for the detailed task breakdown.
 
