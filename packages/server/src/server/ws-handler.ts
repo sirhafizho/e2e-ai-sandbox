@@ -371,13 +371,14 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                   }
                 }
 
-                // Emit lower-confidence suggestions to UI
+                // Emit lower-confidence suggestions to UI (not in typed event schema yet)
                 const pending = suggestions.filter((s) => s.confidence <= 0.7);
                 if (pending.length > 0) {
-                  send(ws, {
-                    type: 'note_suggestions' as ServerWebSocketEvent['type'],
-                    suggestions: pending,
-                  } as unknown as ServerWebSocketEvent);
+                  try {
+                    ws.send(JSON.stringify({ type: 'note_suggestions', suggestions: pending }));
+                  } catch {
+                    // WebSocket may be closed
+                  }
                 }
               } catch (err) {
                 console.error('NoteSuggester failed:', err);

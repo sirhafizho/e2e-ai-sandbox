@@ -59,16 +59,20 @@ export interface ServerSettings {
 export const api = {
   sessions: {
     list: () => request<{ sessions: SessionInfo[]; total: number }>('/sessions'),
-    get: (id: string) => request<SessionInfo>(`/sessions/${id}`),
+    get: (id: string) =>
+      request<{ session: SessionInfo }>(`/sessions/${id}`)
+        .then((res) => res.session),
     create: (opts?: CreateSessionOptions) =>
-      request<SessionInfo>('/sessions', {
+      request<{ session: SessionInfo }>('/sessions', {
         method: 'POST',
         body: JSON.stringify(opts ?? {}),
-      }),
+      }).then((res) => res.session),
     delete: (id: string) =>
-      request<void>(`/sessions/${id}`, { method: 'DELETE' }),
+      request<{ deleted: boolean }>(`/sessions/${id}`, { method: 'DELETE' }),
     resume: (id: string) =>
-      request<SessionInfo>(`/sessions/${id}/resume`, { method: 'POST' }),
+      request<{ session: SessionInfo & { resumed: boolean; history_length: number } }>(`/sessions/${id}/resume`, {
+        method: 'POST',
+      }).then((res) => res.session),
     messages: (id: string) =>
       request<MessageHistoryResponse>(`/sessions/${id}/messages`),
     writeFile: (id: string, path: string, content: string) =>

@@ -25,7 +25,7 @@ function PanelLoader() {
 export function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const wsRef = useRef<ForgeWebSocket | null>(null);
-  const { setSessionId, addMessage, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession } =
+  const { setSessionId, addMessage, appendToMessage, finalizeStreaming, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession } =
     useSessionStore();
 
   const handleSendMessage = useCallback(
@@ -67,17 +67,32 @@ export function SessionPage() {
       });
     });
 
+    let streamingMessageId: string | null = null;
     ws.on('agent_message', (data) => {
       const done = (data.done as boolean) ?? false;
-      addMessage({
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: (data.content as string) ?? '',
-        streaming: !done,
-        timestamp: new Date().toISOString(),
-      });
+      const content = (data.content as string) ?? '';
+
       if (done) {
+        // Finalize: mark the streaming message as complete
+        if (streamingMessageId) {
+          if (content) appendToMessage(streamingMessageId, content);
+          finalizeStreaming();
+        }
+        streamingMessageId = null;
         setAgentWorking(false);
+      } else if (streamingMessageId) {
+        // Append to existing streaming message
+        appendToMessage(streamingMessageId, content);
+      } else {
+        // Start a new streaming message
+        streamingMessageId = crypto.randomUUID();
+        addMessage({
+          id: streamingMessageId,
+          role: 'assistant',
+          content,
+          streaming: true,
+          timestamp: new Date().toISOString(),
+        });
       }
     });
 
@@ -150,7 +165,7 @@ export function SessionPage() {
       wsRef.current = null;
       clearSession();
     };
-  }, [id, setSessionId, addMessage, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession]);
+  }, [id, setSessionId, addMessage, appendToMessage, finalizeStreaming, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession]);
 
   return (
     <WorkspaceLayout

@@ -39,6 +39,8 @@ interface SessionState {
   addMessage: (msg: ChatMessage) => void;
   setMessages: (msgs: ChatMessage[]) => void;
   updateLastMessage: (content: string) => void;
+  appendToMessage: (id: string, content: string) => void;
+  finalizeStreaming: () => void;
   setToolCall: (call: ToolCall) => void;
   updateToolCall: (callId: string, update: Partial<ToolCall>) => void;
   setTodos: (todos: TodoItem[]) => void;
@@ -71,6 +73,24 @@ export const useSessionStore = create<SessionState>((set) => ({
       const lastIdx = messages.length - 1;
       if (lastIdx >= 0 && messages[lastIdx]!.role === 'assistant') {
         messages[lastIdx] = { ...messages[lastIdx]!, content, streaming: false };
+      }
+      return { messages };
+    }),
+
+  appendToMessage: (id, content) =>
+    set((state) => {
+      const messages = state.messages.map((m) =>
+        m.id === id ? { ...m, content: m.content + content } : m,
+      );
+      return { messages };
+    }),
+
+  finalizeStreaming: () =>
+    set((state) => {
+      const messages = [...state.messages];
+      const lastIdx = messages.length - 1;
+      if (lastIdx >= 0 && messages[lastIdx]!.role === 'assistant' && messages[lastIdx]!.streaming) {
+        messages[lastIdx] = { ...messages[lastIdx]!, streaming: false };
       }
       return { messages };
     }),
