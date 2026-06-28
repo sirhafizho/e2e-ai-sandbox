@@ -75,7 +75,7 @@ export class SessionHistoryStore {
     this.stmtSearch = this.db.prepare(
       `SELECT * FROM session_history WHERE
         (repo = @repo OR @repo IS NULL)
-        AND (summary LIKE @query OR decisions_made LIKE @query OR files_modified LIKE @query)
+        AND (summary LIKE @query ESCAPE '\\' OR decisions_made LIKE @query ESCAPE '\\' OR files_modified LIKE @query ESCAPE '\\')
        ORDER BY created_at DESC LIMIT @limit`,
     );
 
@@ -149,9 +149,11 @@ export class SessionHistoryStore {
    * Search history entries by keyword.
    */
   search(query: string, repo?: string, limit: number = 20): SessionHistoryRow[] {
+    // Escape LIKE wildcards so % and _ are treated as literals
+    const escaped = query.replace(/[%_]/g, '\\$&');
     return this.stmtSearch.all({
       repo: repo ?? null,
-      query: `%${query}%`,
+      query: `%${escaped}%`,
       limit,
     }) as SessionHistoryRow[];
   }

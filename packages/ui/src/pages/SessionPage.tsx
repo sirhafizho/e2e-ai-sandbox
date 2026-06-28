@@ -177,6 +177,15 @@ export function SessionPage() {
       });
     }));
 
+    // If WS disconnects mid-stream, reset streaming state so the UI isn't stuck
+    unsubs.push(ws.on('_disconnected', () => {
+      if (streamingMessageId) {
+        finalizeStreaming();
+        streamingMessageId = null;
+      }
+      setAgentWorking(false);
+    }));
+
     // Load persisted message history before connecting WebSocket
     api.sessions.messages(id).then((res) => {
       if (res.messages.length > 0) {

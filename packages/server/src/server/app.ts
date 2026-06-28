@@ -388,8 +388,9 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     if (containerId) {
       try {
         await containerManager.destroy(containerId);
-      } catch {
-        // Container may already be gone
+      } catch (err) {
+        // Container may already be gone — log but don't fail the delete
+        console.warn(`Container cleanup failed for session ${id}:`, err instanceof Error ? err.message : err);
       }
     }
 

@@ -62,7 +62,7 @@ export class KnowledgeStore {
 
     this.stmtSearch = this.db.prepare(
       `SELECT * FROM knowledge_notes WHERE (repo_scope = @repo OR repo_scope = 'global')
-       AND (content LIKE @query OR tags LIKE @query)
+       AND (content LIKE @query ESCAPE '\\' OR tags LIKE @query ESCAPE '\\')
        ORDER BY last_used_at DESC NULLS LAST, created_at DESC
        LIMIT @limit`,
     );
@@ -116,9 +116,11 @@ export class KnowledgeStore {
    * Search notes by keyword within a repo scope.
    */
   search(repo: string, query: string, limit: number = 20): KnowledgeNoteRow[] {
+    // Escape LIKE wildcards so % and _ are treated as literals
+    const escaped = query.replace(/[%_]/g, '\\$&');
     return this.stmtSearch.all({
       repo,
-      query: `%${query}%`,
+      query: `%${escaped}%`,
       limit,
     }) as KnowledgeNoteRow[];
   }

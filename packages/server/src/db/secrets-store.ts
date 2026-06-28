@@ -36,8 +36,7 @@ export class SecretsStore {
       INSERT INTO secrets (repo, key, value, created_at)
       VALUES (@repo, @key, @value, @created_at)
       ON CONFLICT(repo, key) DO UPDATE SET
-        value = @value,
-        created_at = @created_at
+        value = @value
     `);
 
     this.stmtDelete = this.db.prepare(`DELETE FROM secrets WHERE repo = ? AND key = ?`);

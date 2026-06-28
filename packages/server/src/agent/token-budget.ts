@@ -183,12 +183,12 @@ export class TokenBudget {
 
   /** Set token usage from an exact or estimated count. */
   setUsage(tokens: number): void {
-    this.used = tokens;
+    this.used = Math.max(0, tokens);
   }
 
   /** Add tokens to the current usage count. */
   addUsage(tokens: number): void {
-    this.used += tokens;
+    this.used = Math.max(0, this.used + tokens);
   }
 
   /** Record tokens freed by summarization or eviction. */

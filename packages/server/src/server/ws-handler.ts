@@ -117,6 +117,15 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
             return;
           }
 
+          if (session.status !== 'ready') {
+            send(ws, {
+              type: 'error',
+              code: 'SESSION_NOT_READY',
+              message: `Session is ${session.status}. Resume it first.`,
+            });
+            return;
+          }
+
           // Lazily create agent loop (restore history from DB if resuming)
           if (!session.agentLoop) {
             const settings = deps.settingsStore?.getAll();
@@ -415,6 +424,13 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
       if (abortController) {
         abortController.abort();
         abortController = null;
+      }
+      // If the session is still running (agent was in-flight), reset to ready
+      // so it doesn't get stuck. The finally block in the agent loop may also
+      // set this, but onClose can fire before the generator fully unwinds.
+      const session = deps.sessions.get(sessionId);
+      if (session && session.status === 'running') {
+        session.status = 'ready';
       }
     },
 

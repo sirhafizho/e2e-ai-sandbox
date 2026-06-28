@@ -57,13 +57,22 @@ export class SettingsStore {
   getAll(): ServerSettings {
     const provider = this.getKey('provider');
     const docker = this.getKey('docker');
+
+    let parsedProvider: Partial<ServerSettings['provider']> = {};
+    let parsedDocker: Partial<ServerSettings['docker']> = {};
+
+    if (provider) {
+      try { parsedProvider = JSON.parse(provider) as Partial<ServerSettings['provider']>; }
+      catch { /* corrupted settings — fall back to defaults */ }
+    }
+    if (docker) {
+      try { parsedDocker = JSON.parse(docker) as Partial<ServerSettings['docker']>; }
+      catch { /* corrupted settings — fall back to defaults */ }
+    }
+
     return {
-      provider: provider
-        ? { ...DEFAULT_SETTINGS.provider, ...(JSON.parse(provider) as Partial<ServerSettings['provider']>) }
-        : { ...DEFAULT_SETTINGS.provider },
-      docker: docker
-        ? { ...DEFAULT_SETTINGS.docker, ...(JSON.parse(docker) as Partial<ServerSettings['docker']>) }
-        : { ...DEFAULT_SETTINGS.docker },
+      provider: { ...DEFAULT_SETTINGS.provider, ...parsedProvider },
+      docker: { ...DEFAULT_SETTINGS.docker, ...parsedDocker },
     };
   }
 

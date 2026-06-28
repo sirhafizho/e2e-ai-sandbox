@@ -101,10 +101,13 @@ export function getRetryPolicy(category: ErrorCategory): RetryPolicy {
  * Calculate the delay for a retry attempt.
  * Uses exponential backoff with optional jitter.
  */
+const MAX_RETRY_DELAY_MS = 60_000; // Cap at 1 minute
+
 export function calculateRetryDelay(policy: RetryPolicy, attempt: number): number {
   if (policy.baseDelayMs === 0) return 0;
 
-  const delay = policy.baseDelayMs * Math.pow(policy.backoffMultiplier, attempt);
+  const raw = policy.baseDelayMs * Math.pow(policy.backoffMultiplier, attempt);
+  const delay = Math.min(raw, MAX_RETRY_DELAY_MS);
 
   if (policy.jitter) {
     // Add random jitter: 0.5x to 1.5x the calculated delay
@@ -112,7 +115,7 @@ export function calculateRetryDelay(policy: RetryPolicy, attempt: number): numbe
     return Math.floor(delay * jitterFactor);
   }
 
-  return delay;
+  return Math.floor(delay);
 }
 
 /**
@@ -134,9 +137,16 @@ export function getEscalationLevel(category: ErrorCategory, attempt: number): Es
   return 'escalate';
 }
 
-/** Sleep for a given number of milliseconds. */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** Sleep for a given number of milliseconds, with optional abort support. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason ?? new Error('Aborted')); return; }
+    const timer = setTimeout(resolve, ms);
+    if (signal) {
+      const onAbort = () => { clearTimeout(timer); reject(signal.reason ?? new Error('Aborted')); };
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+  });
 }
 
 /**
@@ -200,12 +210,13 @@ export async function withRetry<T>(
         throw error;
       }
 
-      // Wait before retrying
+      // Wait before retrying (sleep respects abort signal)
       const delayMs = calculateRetryDelay(policy, attempt);
       if (delayMs > 0) {
-        await sleep(delayMs);
-        // Re-check abort signal after sleep — the user may have cancelled during the delay
-        if (options.abortSignal?.aborted) {
+        try {
+          await sleep(delayMs, options.abortSignal);
+        } catch {
+          // Sleep was aborted — re-throw the original tool error
           throw error;
         }
       }

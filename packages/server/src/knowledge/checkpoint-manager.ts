@@ -83,9 +83,14 @@ export class CheckpointManager {
       summary,
     };
 
-    // Persist to store
-    const row = this.checkpointStore.save(sessionId, JSON.stringify(data));
-    data.checkpoint_id = row.checkpoint_id;
+    // Persist to store (best-effort — don't crash agent on store failure)
+    try {
+      const row = this.checkpointStore.save(sessionId, JSON.stringify(data));
+      data.checkpoint_id = row.checkpoint_id;
+    } catch (err) {
+      console.error('Failed to save checkpoint:', err);
+      data.checkpoint_id = `cp_unsaved_${Date.now()}`;
+    }
 
     return data;
   }

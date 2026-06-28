@@ -99,7 +99,7 @@ export const fileWriteTool: ToolSpec<FileWriteInput, FileWriteOutput> = {
 
     // Use base64 encoding for robust content transfer — avoids all shell escaping issues
     const base64Content = Buffer.from(input.content, 'utf-8').toString('base64');
-    const cmd = `echo '${base64Content}' | base64 -d > "${path}" && wc -c < "${path}"`;
+    const cmd = `printf '%s' '${base64Content}' | base64 -d > "${path}" && wc -c < "${path}"`;
     const result = await context.containerManager.exec(context.containerId, cmd);
 
     if (result.exitCode !== 0) {
@@ -164,7 +164,7 @@ export const fileEditTool: ToolSpec<FileEditInput, FileEditOutput> = {
 
     // Write back using base64 to avoid shell escaping issues
     const base64Content = Buffer.from(newContent, 'utf-8').toString('base64');
-    const writeCmd = `echo '${base64Content}' | base64 -d > "${path}"`;
+    const writeCmd = `printf '%s' '${base64Content}' | base64 -d > "${path}"`;
     const writeResult = await context.containerManager.exec(context.containerId, writeCmd);
 
     if (writeResult.exitCode !== 0) {
