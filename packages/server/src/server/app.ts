@@ -881,10 +881,11 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     }
 
     // Parse tags from JSON strings for response
-    const parsed = notes.map((n) => ({
-      ...n,
-      tags: JSON.parse(n.tags) as string[],
-    }));
+    const parsed = notes.map((n) => {
+      let tags: string[] = [];
+      try { tags = JSON.parse(n.tags) as string[]; } catch { /* corrupted tags */ }
+      return { ...n, tags };
+    });
 
     return c.json({ notes: parsed, total: parsed.length });
   });
@@ -910,8 +911,10 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       source: parsed.data.source,
     });
 
+    let noteTags: string[] = [];
+    try { noteTags = JSON.parse(note.tags) as string[]; } catch { /* */ }
     return c.json({
-      note: { ...note, tags: JSON.parse(note.tags) as string[] },
+      note: { ...note, tags: noteTags },
     }, 201);
   });
 
@@ -939,11 +942,14 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       entries = sessionHistoryStore.list();
     }
 
+    const safeParse = (json: string): string[] => {
+      try { return JSON.parse(json) as string[]; } catch { return []; }
+    };
     const parsed = entries.map((e) => ({
       ...e,
-      decisions_made: JSON.parse(e.decisions_made) as string[],
-      files_modified: JSON.parse(e.files_modified) as string[],
-      errors_hit: JSON.parse(e.errors_hit) as string[],
+      decisions_made: safeParse(e.decisions_made),
+      files_modified: safeParse(e.files_modified),
+      errors_hit: safeParse(e.errors_hit),
     }));
 
     return c.json({ sessions: parsed, total: parsed.length });

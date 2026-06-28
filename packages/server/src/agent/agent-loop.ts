@@ -125,20 +125,23 @@ export class AgentLoop {
 
     // Emergency: checkpoint at 95%+ and aggressively window
     if (this.tokenBudget.shouldCheckpoint() && this.checkpointManager && sessionContext) {
-      const checkpoint = this.checkpointManager.createCheckpoint(
+      // Side effect: persists checkpoint to store for session recovery
+      this.checkpointManager.createCheckpoint(
         sessionContext.sessionId,
         this.history,
         this.todoTracker,
         this.lastUserMessage,
       );
 
+      const emergencyStatus = this.tokenBudget.getStatus();
       yield {
         type: 'token_budget',
         data: {
           level: 'emergency' as BudgetLevel,
-          usageRatio: this.tokenBudget.usageRatio,
-          checkpoint_id: checkpoint.checkpoint_id,
-          message: 'Context checkpointed — older context will be evicted',
+          usageRatio: Math.round(emergencyStatus.usageRatio * 100) / 100,
+          used: emergencyStatus.used,
+          remaining: emergencyStatus.remaining,
+          usableBudget: emergencyStatus.usableBudget,
         },
       };
 

@@ -448,23 +448,26 @@ export class SnapshotBuilder {
 
         const stdoutChunks: Buffer[] = [];
         const stderrChunks: Buffer[] = [];
+        let pendingBuf: Buffer = Buffer.alloc(0);
 
         stream.on('data', (chunk: Buffer) => {
+          const buf = pendingBuf.length > 0 ? Buffer.concat([pendingBuf, chunk]) : chunk;
           let offset = 0;
-          while (offset < chunk.length) {
-            if (offset + 8 > chunk.length) break;
-            const streamType = chunk[offset];
-            const size = chunk.readUInt32BE(offset + 4);
+          while (offset < buf.length) {
+            if (offset + 8 > buf.length) break;
+            const streamType = buf[offset];
+            const size = buf.readUInt32BE(offset + 4);
             offset += 8;
-            if (offset + size > chunk.length) break;
-            const data = chunk.subarray(offset, offset + size);
+            if (offset + size > buf.length) { offset -= 8; break; }
+            const data = buf.subarray(offset, offset + size);
             if (streamType === 1) {
-              stdoutChunks.push(data);
+              stdoutChunks.push(Buffer.from(data));
             } else if (streamType === 2) {
-              stderrChunks.push(data);
+              stderrChunks.push(Buffer.from(data));
             }
             offset += size;
           }
+          pendingBuf = offset < buf.length ? Buffer.from(buf.subarray(offset)) : Buffer.alloc(0);
         });
 
         stream.on('end', async () => {

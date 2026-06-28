@@ -29,7 +29,8 @@ export function runSessionsList() {
 
     const created = formatRelativeTime(s.created_at);
     const lastActive = formatRelativeTime(s.last_active_at);
-    const historyCount = JSON.parse(s.history_json).length;
+    let historyCount = 0;
+    try { const h = JSON.parse(s.history_json); historyCount = Array.isArray(h) ? h.length : 0; } catch { /* */ }
 
     console.log(
       `  ${chalk.cyan(s.id.padEnd(14))} ${statusColor(s.status.padEnd(12))} ${s.model.padEnd(22)} ${chalk.dim(created.padEnd(20))} ${chalk.dim(lastActive)}${historyCount > 0 ? chalk.dim(` (${historyCount} msgs)`) : ''}`,
@@ -52,7 +53,8 @@ export function runSessionsShow(id: string) {
     process.exit(1);
   }
 
-  const historyMessages = JSON.parse(session.history_json);
+  let historyCount = 0;
+  try { const h = JSON.parse(session.history_json); historyCount = Array.isArray(h) ? h.length : 0; } catch { /* */ }
 
   console.log(chalk.bold(`\n  Session: ${session.id}\n`));
   console.log(`  Status:       ${session.status}`);
@@ -61,7 +63,7 @@ export function runSessionsShow(id: string) {
   console.log(`  Created:      ${session.created_at}`);
   console.log(`  Updated:      ${session.updated_at}`);
   console.log(`  Last active:  ${session.last_active_at}`);
-  console.log(`  History:      ${historyMessages.length} messages`);
+  console.log(`  History:      ${historyCount} messages`);
   if (session.context_summary) {
     console.log(`  Summary:      ${chalk.dim(session.context_summary.slice(0, 100) + '...')}`);
   }

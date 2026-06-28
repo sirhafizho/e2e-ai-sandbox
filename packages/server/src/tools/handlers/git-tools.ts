@@ -35,7 +35,7 @@ export const gitStatusTool: ToolSpec<GitStatusInput, GitStatusOutput> = {
     const cwd = input.path ?? '/workspace';
     const result = await context.containerManager.exec(
       context.containerId,
-      `cd ${cwd} && git status`,
+      `cd '${cwd.replace(/'/g, "'\\''")}' && git status`,
     );
 
     // Extract branch name
@@ -69,15 +69,15 @@ export const gitDiffTool: ToolSpec<GitDiffInput, GitDiffOutput> = {
   handler: async (input, context) => {
     let cmd = 'cd /workspace && git diff';
     if (input.staged) cmd += ' --cached';
-    if (input.commit) cmd += ` ${input.commit}`;
-    if (input.path) cmd += ` -- ${input.path}`;
+    if (input.commit) cmd += ` '${input.commit.replace(/'/g, "'\\''")}'`;
+    if (input.path) cmd += ` -- '${input.path.replace(/'/g, "'\\''")}'`;
 
     const result = await context.containerManager.exec(context.containerId, cmd);
 
     // Count files changed from diff stat
     const statResult = await context.containerManager.exec(
       context.containerId,
-      `cd /workspace && git diff --stat${input.staged ? ' --cached' : ''}${input.commit ? ` ${input.commit}` : ''}${input.path ? ` -- ${input.path}` : ''}`,
+      `cd /workspace && git diff --stat${input.staged ? ' --cached' : ''}${input.commit ? ` '${input.commit.replace(/'/g, "'\\''")}'` : ''}${input.path ? ` -- '${input.path.replace(/'/g, "'\\''")}'` : ''}`,
     );
     const filesMatch = statResult.stdout.match(/(\d+) files? changed/);
     const filesChanged = filesMatch ? parseInt(filesMatch[1]!, 10) : 0;
@@ -112,7 +112,7 @@ export const gitLogTool: ToolSpec<GitLogInput, GitLogOutput> = {
     const max = Math.min(input.max_count ?? 20, MAX_LOG_ENTRIES);
     const format = (input.oneline ?? true) ? '--oneline' : '--format=medium';
     let cmd = `cd /workspace && git log ${format} -n ${max}`;
-    if (input.path) cmd += ` -- ${input.path}`;
+    if (input.path) cmd += ` -- '${input.path.replace(/'/g, "'\\''")}'`;
 
     const result = await context.containerManager.exec(context.containerId, cmd);
     const entries = result.stdout.trim().split('\n').filter(Boolean);
@@ -144,7 +144,7 @@ export const gitCommitTool: ToolSpec<GitCommitInput, GitCommitOutput> = {
   handler: async (input, context) => {
     // Stage files if requested
     if (input.files && input.files.length > 0) {
-      const fileList = input.files.map((f) => `'${f}'`).join(' ');
+      const fileList = input.files.map((f) => `'${f.replace(/'/g, "'\\''")}'`).join(' ');
       await context.containerManager.exec(
         context.containerId,
         `cd /workspace && git add ${fileList}`,
@@ -198,8 +198,8 @@ export const gitPushTool: ToolSpec<GitPushInput, GitPushOutput> = {
   inputSchema: GitPushInput,
   handler: async (input, context) => {
     const remote = input.remote ?? 'origin';
-    let cmd = `cd /workspace && git push ${remote}`;
-    if (input.branch) cmd += ` ${input.branch}`;
+    let cmd = `cd /workspace && git push '${remote.replace(/'/g, "'\\''")}'`;
+    if (input.branch) cmd += ` '${input.branch.replace(/'/g, "'\\''")}'`;
     if (input.force) cmd += ' --force-with-lease';
     if (input.set_upstream) cmd += ' -u';
 
@@ -242,7 +242,7 @@ export const gitCreatePrTool: ToolSpec<GitCreatePrInput, GitCreatePrOutput> = {
       cmd += ` --body '${escapedBody}'`;
     }
 
-    if (input.base) cmd += ` --base ${input.base}`;
+    if (input.base) cmd += ` --base '${input.base.replace(/'/g, "'\\''")}'`;
     if (input.draft) cmd += ' --draft';
 
     const result = await context.containerManager.exec(context.containerId, cmd);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Save, TestTube, Check, X, Loader2 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import type { ProviderSettings, DockerSettings } from '../lib/api.js';
@@ -31,6 +31,11 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current); };
+  }, []);
 
   // Load settings from server on mount
   useEffect(() => {
@@ -62,7 +67,8 @@ export function SettingsPage() {
       setProvider(res.settings.provider);
       setDocker(res.settings.docker);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch {
       setTestResult({ ok: false, message: 'Failed to save settings' });
     } finally {

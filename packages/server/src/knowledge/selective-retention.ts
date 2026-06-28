@@ -164,7 +164,9 @@ export class SelectiveRetention {
   private truncateShellOutput(text: string): string {
     const lines = text.split('\n');
     if (lines.length <= MAX_SHELL_LINES) {
-      return text.slice(0, MAX_TOOL_OUTPUT_LENGTH);
+      // Short output — only trim by character length if truly oversized
+      if (text.length <= MAX_TOOL_OUTPUT_LENGTH) return text;
+      return text.slice(0, MAX_TOOL_OUTPUT_LENGTH) + '\n[...truncated]';
     }
 
     // Extract error lines first

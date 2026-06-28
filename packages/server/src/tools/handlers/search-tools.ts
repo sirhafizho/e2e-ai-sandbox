@@ -32,12 +32,14 @@ export const grepTool: ToolSpec<GrepInput, GrepOutput> = {
     const maxResults = input.max_results ?? 100;
     const searchPath = input.path ?? '/workspace';
 
+    // Shell-escape by wrapping each arg in single quotes (escaping embedded single quotes)
+    const esc = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
     const args = ['rg', '--json', '--max-count', String(maxResults)];
     if (input.case_insensitive) args.push('-i');
-    if (input.glob) args.push('-g', input.glob);
-    args.push(input.pattern, searchPath);
+    if (input.glob) args.push('-g', esc(input.glob));
+    args.push(esc(input.pattern), esc(searchPath));
 
-    const cmd = args.map((a) => (a.includes(' ') ? `"${a}"` : a)).join(' ');
+    const cmd = args.join(' ');
     const result = await context.containerManager.exec(context.containerId, cmd, {
       timeoutMs: 30_000,
     });
@@ -103,7 +105,8 @@ export const findFilesTool: ToolSpec<FindFilesInput, FindFilesOutput> = {
   inputSchema: FindFilesInput,
   handler: async (input, context) => {
     const searchPath = input.path ?? '/workspace';
-    const cmd = `fd --glob "${input.pattern}" "${searchPath}" --max-results 100`;
+    const esc = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+    const cmd = `fd --glob ${esc(input.pattern)} ${esc(searchPath)} --max-results 100`;
 
     const result = await context.containerManager.exec(context.containerId, cmd, {
       timeoutMs: 30_000,

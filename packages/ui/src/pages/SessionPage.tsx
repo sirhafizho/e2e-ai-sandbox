@@ -61,17 +61,19 @@ export function SessionPage() {
     const ws = new ForgeWebSocket(id);
     wsRef.current = ws;
 
-    ws.on('greeting', (data) => {
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(ws.on('greeting', (data) => {
       addMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
         content: (data.message as string) ?? 'Session connected.',
         timestamp: new Date().toISOString(),
       });
-    });
+    }));
 
     let streamingMessageId: string | null = null;
-    ws.on('agent_message', (data) => {
+    unsubs.push(ws.on('agent_message', (data) => {
       const done = (data.done as boolean) ?? false;
       const content = (data.content as string) ?? '';
 
@@ -97,34 +99,34 @@ export function SessionPage() {
           timestamp: new Date().toISOString(),
         });
       }
-    });
+    }));
 
-    ws.on('tool_start', (data) => {
+    unsubs.push(ws.on('tool_start', (data) => {
       setToolCall({
         callId: data.call_id as string,
         toolName: data.tool_name as string,
         input: { summary: data.input_summary as string },
         status: 'running',
       });
-    });
+    }));
 
-    ws.on('tool_complete', (data) => {
+    unsubs.push(ws.on('tool_complete', (data) => {
       updateToolCall(data.call_id as string, {
         status: 'complete',
         output: data.result,
         durationMs: data.duration_ms as number,
       });
-    });
+    }));
 
-    ws.on('tool_error', (data) => {
+    unsubs.push(ws.on('tool_error', (data) => {
       updateToolCall(data.call_id as string, {
         status: 'error',
         output: data.error,
         isError: true,
       });
-    });
+    }));
 
-    ws.on('todo_update', (data) => {
+    unsubs.push(ws.on('todo_update', (data) => {
       const todos = data.todos as Array<{ content: string; status: string }>;
       setTodos(
         todos.map((t) => ({
@@ -132,20 +134,20 @@ export function SessionPage() {
           status: t.status as 'pending' | 'in_progress' | 'completed',
         })),
       );
-    });
+    }));
 
-    ws.on('session_status', (data) => {
+    unsubs.push(ws.on('session_status', (data) => {
       setStatus(data.status as string);
-    });
+    }));
 
-    ws.on('browser_screenshot', (data) => {
+    unsubs.push(ws.on('browser_screenshot', (data) => {
       setBrowserScreenshot(
         (data.screenshot as string) ?? null,
         data.url as string | undefined,
       );
-    });
+    }));
 
-    ws.on('token_budget', (data) => {
+    unsubs.push(ws.on('token_budget', (data) => {
       const level = data.level as string;
       if (level === 'critical' || level === 'emergency') {
         addMessage({
@@ -155,25 +157,25 @@ export function SessionPage() {
           timestamp: new Date().toISOString(),
         });
       }
-    });
+    }));
 
-    ws.on('idle_warning', (data) => {
+    unsubs.push(ws.on('idle_warning', (data) => {
       addMessage({
         id: crypto.randomUUID(),
         role: 'system',
         content: `Session will be paused in ${data.minutes_remaining} minute(s) due to inactivity.`,
         timestamp: new Date().toISOString(),
       });
-    });
+    }));
 
-    ws.on('error', (data) => {
+    unsubs.push(ws.on('error', (data) => {
       addMessage({
         id: crypto.randomUUID(),
         role: 'system',
         content: `Error: ${data.message ?? data.error ?? 'Unknown error'}`,
         timestamp: new Date().toISOString(),
       });
-    });
+    }));
 
     // Load persisted message history before connecting WebSocket
     api.sessions.messages(id).then((res) => {
@@ -194,6 +196,7 @@ export function SessionPage() {
     ws.connect();
 
     return () => {
+      for (const unsub of unsubs) unsub();
       ws.disconnect();
       wsRef.current = null;
       clearSession();

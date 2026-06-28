@@ -1,16 +1,18 @@
 import { z } from 'zod';
+import { posix } from 'node:path';
 import type { ToolSpec } from '../types.js';
 
 const MAX_READ_LINES = 500;
 const KEEP_LINES = 100;
 
-function enforcePath(path: string): string {
+function enforcePath(inputPath: string): string {
   // Normalize and ensure path is under /workspace
-  const normalized = path.startsWith('/workspace') ? path : `/workspace/${path}`;
-  if (normalized.includes('..')) {
-    throw new Error('Path traversal not allowed: path contains ".."');
+  const prefixed = inputPath.startsWith('/workspace') ? inputPath : `/workspace/${inputPath}`;
+  const resolved = posix.resolve(prefixed);
+  if (!resolved.startsWith('/workspace/') && resolved !== '/workspace') {
+    throw new Error(`Path traversal not allowed: ${resolved} is outside /workspace`);
   }
-  return normalized;
+  return resolved;
 }
 
 // --- file_read ---
