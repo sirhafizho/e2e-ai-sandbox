@@ -121,11 +121,9 @@ export function createTerminalHandlers(
             terminal.resize(msg.cols, msg.rows).catch(() => {});
             return;
           }
-          // Handle the format the UI sends: { type: 'terminal_input', data: { shell_id, input } }
           if (msg.type === 'terminal_input') {
-            const input = msg.input ?? (msg as Record<string, unknown> & { data?: { input?: string } }).data?.input;
-            if (input) {
-              terminal.stream.write(input);
+            if (msg.input) {
+              terminal.stream.write(msg.input);
             }
             return;
           }

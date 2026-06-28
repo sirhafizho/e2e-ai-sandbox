@@ -12,13 +12,12 @@ export type WSEventType =
 
 export interface WSEvent {
   type: WSEventType;
-  data: Record<string, unknown>;
-  timestamp?: string;
+  [key: string]: unknown;
 }
 
 export interface WSClientMessage {
-  type: 'user_message' | 'cancel' | 'terminal_input';
-  data: Record<string, unknown>;
+  type: string;
+  [key: string]: unknown;
 }
 
 export class ForgeWebSocket {
@@ -61,7 +60,10 @@ export class ForgeWebSocket {
       this.lastPongTime = Date.now();
       try {
         const msg = JSON.parse(event.data as string) as WSEvent;
-        this.emit(msg.type, msg.data);
+        // Server sends flat events (e.g. { type, content, done }).
+        // Extract the type and pass the rest as the data payload.
+        const { type, ...data } = msg;
+        this.emit(type, data as Record<string, unknown>);
       } catch {
         // Ignore malformed messages (including pong frames)
       }
@@ -130,11 +132,11 @@ export class ForgeWebSocket {
   }
 
   sendMessage(content: string): void {
-    this.send({ type: 'user_message', data: { content } });
+    this.send({ type: 'user_message', content });
   }
 
   sendCancel(): void {
-    this.send({ type: 'cancel', data: {} });
+    this.send({ type: 'cancel' });
   }
 
   on(event: string, handler: (data: Record<string, unknown>) => void): () => void {

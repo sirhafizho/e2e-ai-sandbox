@@ -27,6 +27,7 @@ export class ContainerManager {
       image = DEFAULT_IMAGE,
       workspacePath,
       useVolume,
+      existingVolume,
       cpuLimit = DEFAULT_CPU_LIMIT,
       memoryLimit = DEFAULT_MEMORY_LIMIT,
       pidLimit = DEFAULT_PID_LIMIT,
@@ -40,6 +41,10 @@ export class ContainerManager {
     if (workspacePath) {
       // Bind-mount from host
       binds.push(`${workspacePath}:/workspace`);
+    } else if (existingVolume) {
+      // Reattach an existing named volume (e.g., on session resume)
+      volumeName = existingVolume;
+      binds.push(`${volumeName}:/workspace`);
     } else if (useVolume !== false) {
       // Create a named Docker volume (default behavior)
       volumeName = `forge-workspace-${sessionId ?? crypto.randomUUID().slice(0, 8)}`;

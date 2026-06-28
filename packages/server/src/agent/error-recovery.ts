@@ -195,7 +195,7 @@ export async function withRetry<T>(
         throw error;
       }
 
-      // Check abort signal
+      // Check abort signal before and after sleep
       if (options.abortSignal?.aborted) {
         throw error;
       }
@@ -204,6 +204,10 @@ export async function withRetry<T>(
       const delayMs = calculateRetryDelay(policy, attempt);
       if (delayMs > 0) {
         await sleep(delayMs);
+        // Re-check abort signal after sleep — the user may have cancelled during the delay
+        if (options.abortSignal?.aborted) {
+          throw error;
+        }
       }
 
       attempt++;

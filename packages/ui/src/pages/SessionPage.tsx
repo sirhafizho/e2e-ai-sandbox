@@ -25,12 +25,15 @@ function PanelLoader() {
 export function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const wsRef = useRef<ForgeWebSocket | null>(null);
-  const { setSessionId, addMessage, appendToMessage, finalizeStreaming, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession } =
+  const { setSessionId, addMessage, appendToMessage, finalizeStreaming, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession, clearToolCalls } =
     useSessionStore();
 
   const handleSendMessage = useCallback(
     (content: string) => {
       if (!wsRef.current) return;
+
+      // Clear stale tool calls from the previous turn
+      clearToolCalls();
 
       // Add user message to store
       addMessage({
@@ -44,7 +47,7 @@ export function SessionPage() {
       wsRef.current.sendMessage(content);
       setAgentWorking(true);
     },
-    [addMessage, setAgentWorking],
+    [addMessage, setAgentWorking, clearToolCalls],
   );
 
   const handleCancel = useCallback(() => {
@@ -142,6 +145,36 @@ export function SessionPage() {
       );
     });
 
+    ws.on('token_budget', (data) => {
+      const level = data.level as string;
+      if (level === 'critical' || level === 'emergency') {
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'system',
+          content: `Context ${level}: ${Math.round((data.usage_ratio as number) * 100)}% of token budget used. ${level === 'emergency' ? 'Checkpointing context.' : 'Older context will be summarized.'}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    ws.on('idle_warning', (data) => {
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'system',
+        content: `Session will be paused in ${data.minutes_remaining} minute(s) due to inactivity.`,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    ws.on('error', (data) => {
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'system',
+        content: `Error: ${data.message ?? data.error ?? 'Unknown error'}`,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
     // Load persisted message history before connecting WebSocket
     api.sessions.messages(id).then((res) => {
       if (res.messages.length > 0) {
@@ -165,7 +198,7 @@ export function SessionPage() {
       wsRef.current = null;
       clearSession();
     };
-  }, [id, setSessionId, addMessage, appendToMessage, finalizeStreaming, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession]);
+  }, [id, setSessionId, addMessage, appendToMessage, finalizeStreaming, setMessages, setToolCall, updateToolCall, setTodos, setAgentWorking, setStatus, setBrowserScreenshot, clearSession, clearToolCalls]);
 
   return (
     <WorkspaceLayout

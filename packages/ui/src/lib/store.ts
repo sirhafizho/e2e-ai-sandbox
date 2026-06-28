@@ -46,6 +46,7 @@ interface SessionState {
   setTodos: (todos: TodoItem[]) => void;
   setAgentWorking: (working: boolean) => void;
   setBrowserScreenshot: (screenshot: string | null, url?: string) => void;
+  clearToolCalls: () => void;
   clearSession: () => void;
 }
 
@@ -114,6 +115,7 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   setTodos: (todos) => set({ todos }),
   setAgentWorking: (working) => set({ isAgentWorking: working }),
+  clearToolCalls: () => set({ toolCalls: new Map() }),
 
   setBrowserScreenshot: (screenshot, url) =>
     set((state) => ({

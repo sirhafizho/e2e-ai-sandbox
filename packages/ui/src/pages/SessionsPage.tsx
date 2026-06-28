@@ -37,6 +37,32 @@ export function SessionsPage() {
     },
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: (id: string) => api.sessions.resume(id),
+    onSuccess: (session) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      navigate(`/sessions/${session.id}`);
+    },
+    onError: (err, id) => {
+      // Resume failed (e.g., terminated session) — navigate anyway and let the UI show error
+      console.warn('Resume failed:', err);
+      navigate(`/sessions/${id}`);
+    },
+  });
+
+  const handleOpenSession = (session: SessionInfo) => {
+    if (session.status === 'ready' || session.status === 'running') {
+      // Session is live — navigate directly
+      navigate(`/sessions/${session.id}`);
+    } else if (session.status === 'terminated') {
+      // Can't resume terminated sessions — just navigate (will show error)
+      navigate(`/sessions/${session.id}`);
+    } else {
+      // Session is paused/created/booting — try to resume first
+      resumeMutation.mutate(session.id);
+    }
+  };
+
   const handleCreate = () => {
     const opts: CreateSessionOptions = {};
     if (repoUrl.trim()) opts.repo_url = repoUrl.trim();
@@ -136,8 +162,9 @@ export function SessionsPage() {
               <SessionCard
                 key={session.id}
                 session={session}
-                onOpen={() => navigate(`/sessions/${session.id}`)}
+                onOpen={() => handleOpenSession(session)}
                 onDelete={() => deleteMutation.mutate(session.id)}
+                resuming={resumeMutation.isPending}
               />
             ))}
           </div>
@@ -151,10 +178,12 @@ function SessionCard({
   session,
   onOpen,
   onDelete,
+  resuming,
 }: {
   session: SessionInfo;
   onOpen: () => void;
   onDelete: () => void;
+  resuming?: boolean;
 }) {
   const statusColor = {
     ready: 'text-green-400 bg-green-400/10',

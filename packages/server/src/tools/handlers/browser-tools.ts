@@ -27,36 +27,70 @@ async function runPlaywrightScript(
 }
 
 /**
- * Helper: generate Playwright launch boilerplate.
+ * Helper: generate Playwright script that reuses a persistent browser session.
+ * 
+ * On first call, launches a Chromium server and saves its WebSocket endpoint
+ * to /tmp/forge-browser-ws. Subsequent calls connect to the running browser.
+ * Pages are reused across calls so navigation state persists (click after navigate works).
  */
-function playwrightLaunchScript(body: string): string {
+function playwrightSessionScript(body: string): string {
   return `
 const { chromium } = require("playwright");
-(async () => {
+const fs = require("fs");
+const WS_FILE = "/tmp/forge-browser-ws";
+
+async function getOrCreateBrowser() {
+  // Try to connect to an existing browser server
+  if (fs.existsSync(WS_FILE)) {
+    const wsEndpoint = fs.readFileSync(WS_FILE, "utf-8").trim();
+    try {
+      const browser = await chromium.connectOverCDP(wsEndpoint);
+      return { browser, reused: true };
+    } catch {
+      // Server is stale, clean up and launch fresh
+      try { fs.unlinkSync(WS_FILE); } catch {}
+    }
+  }
+
+  // Launch a new browser server
   const browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || "/usr/bin/chromium-browser",
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage",
+      "--remote-debugging-port=9222",
+    ],
   });
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-  const page = await context.newPage();
-  try {
-    ${body}
-  } finally {
-    await browser.close();
-  }
-})().catch(e => { console.error(JSON.stringify({ error: e.message })); process.exit(1); });
-`;
+  // Save the CDP endpoint for reuse
+  fs.writeFileSync(WS_FILE, "http://127.0.0.1:9222");
+  return { browser, reused: false };
 }
 
-/**
- * Helper: generate Playwright script that reuses a running browser via /tmp/forge-browser-*.
- * For efficiency, we use a persistent browser state file.
- */
-function playwrightSessionScript(body: string): string {
-  // For simplicity, each tool call launches its own browser.
-  // Session-level persistence can be added later by storing wsEndpoint.
-  return playwrightLaunchScript(body);
+(async () => {
+  const { browser, reused } = await getOrCreateBrowser();
+
+  // Reuse existing page if available, otherwise create one
+  let context;
+  let page;
+  const contexts = browser.contexts();
+  if (reused && contexts.length > 0) {
+    context = contexts[0];
+    const pages = context.pages();
+    page = pages.length > 0 ? pages[0] : await context.newPage();
+  } else {
+    context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    page = await context.newPage();
+  }
+
+  try {
+    ${body}
+  } catch (e) {
+    console.error(JSON.stringify({ error: e.message }));
+    process.exit(1);
+  }
+  // Do NOT close the browser — keep it running for subsequent calls
+})().catch(e => { console.error(JSON.stringify({ error: e.message })); process.exit(1); });
+`;
 }
 
 // --- browser_navigate ---
@@ -254,9 +288,14 @@ export const browserEvaluateTool: ToolSpec<BrowserEvaluateInput, BrowserEvaluate
       ? `await page.goto(${JSON.stringify(input.url)}, { waitUntil: "domcontentloaded", timeout: 20000 });`
       : '';
 
+    // Pass expression as a JSON-serialized string to avoid template injection.
+    // The expression is evaluated inside page.evaluate via new Function().
     const script = playwrightSessionScript(`
     ${navLine}
-    const result = await page.evaluate(() => { return ${input.expression}; });
+    const __expr = ${JSON.stringify(input.expression)};
+    const result = await page.evaluate((__e) => {
+      return new Function("return (" + __e + ")")();
+    }, __expr);
     console.log(JSON.stringify({ result }));
     `);
 

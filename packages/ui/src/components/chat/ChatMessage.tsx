@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { User, Bot, Copy, Check } from 'lucide-react';
+import { User, Bot, Copy, Check, Info } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import type { ChatMessage as ChatMessageType } from '../../lib/store.js';
 
@@ -11,6 +11,17 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const isSystem = message.role === 'system';
+
+  // System messages render as compact info banners
+  if (isSystem) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
+        <Info className="h-3.5 w-3.5 flex-shrink-0 text-zinc-500" />
+        <span>{message.content}</span>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex gap-3 ${isUser ? '' : ''}`}>

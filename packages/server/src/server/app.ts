@@ -9,6 +9,7 @@ import { AgentLoop } from '../agent/agent-loop.js';
 import { ConversationHistory } from '../agent/conversation-history.js';
 import { TokenBudget, isSmallModel } from '../agent/token-budget.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';
+import { filterToolsForSmallModel } from '../agent/tool-filter.js';
 import { createWsHandlers } from './ws-handler.js';
 import { createTerminalHandlers, destroySessionTerminals } from './terminal-handler.js';
 import {
@@ -571,10 +572,54 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       return c.json({ error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } }, 404);
     }
 
+    // Transform AI SDK ModelMessage[] into the flat format the UI expects
+    function transformMessages(rawMessages: unknown[]): Array<{ id: string; role: string; content: string; timestamp: string }> {
+      const result: Array<{ id: string; role: string; content: string; timestamp: string }> = [];
+      for (const msg of rawMessages) {
+        if (typeof msg !== 'object' || msg === null) continue;
+        const m = msg as { role?: string; content?: unknown };
+        if (!m.role) continue;
+
+        // Skip tool messages — they're internal to the LLM conversation
+        if (m.role === 'tool') continue;
+        // Skip system messages (micro-step hints, context summaries)
+        if (m.role === 'system') continue;
+
+        // Extract text content from various formats
+        let content = '';
+        if (typeof m.content === 'string') {
+          content = m.content;
+        } else if (Array.isArray(m.content)) {
+          // AI SDK structured content: [{ type: 'text', text: '...' }, { type: 'tool-call', ... }]
+          const textParts: string[] = [];
+          for (const part of m.content) {
+            if (typeof part === 'object' && part !== null) {
+              if ('text' in part && typeof (part as { text: string }).text === 'string') {
+                textParts.push((part as { text: string }).text);
+              }
+            }
+          }
+          content = textParts.join('');
+        }
+
+        // Only include messages with actual text content
+        if (content) {
+          result.push({
+            id: `hist_${result.length}`,
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+      return result;
+    }
+
     // If the session has a live agent loop, get messages from it
     if (session?.agentLoop) {
       const history = session.agentLoop.getHistory();
-      const messages = history.getMessages();
+      const rawMessages = history.getMessages();
+      const messages = transformMessages(rawMessages as unknown[]);
       return c.json({
         messages,
         total: messages.length,
@@ -585,7 +630,8 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
     // Otherwise, load from the database
     const historyJson = dbRow?.history_json ?? '[]';
     try {
-      const messages = JSON.parse(historyJson) as unknown[];
+      const rawMessages = JSON.parse(historyJson) as unknown[];
+      const messages = transformMessages(rawMessages);
       return c.json({
         messages,
         total: messages.length,
@@ -670,7 +716,11 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
         session.resumeContext = undefined; // Only inject once
       }
 
-      const toolSpecs = toolRegistry.list();
+      const allToolSpecs = toolRegistry.list();
+      // Filter tool names for small models so the prompt matches the AI SDK definitions
+      const toolSpecs = isSmallModel(session.model)
+        ? filterToolsForSmallModel(allToolSpecs)
+        : allToolSpecs;
       const systemPrompt = buildSystemPrompt({
         toolNames: toolSpecs.map((t) => t.name),
         sessionId: session.id,
@@ -735,9 +785,12 @@ export function createApp(upgradeWebSocket?: UpgradeWebSocket, options?: CreateA
       return c.json({ error: { code: 'SESSION_TERMINATED', message: 'Cannot resume terminated session' } }, 409);
     }
 
-    // Re-create a container for this session
+    // Re-create a container for this session, reattaching the existing workspace volume if available
     try {
-      const containerInfo = await containerManager.create({ sessionId: id });
+      const containerInfo = await containerManager.create({
+        sessionId: id,
+        existingVolume: dbRow.volume_name ?? undefined,
+      });
       const health = await containerManager.healthCheck(containerInfo.containerId);
       if (!health.healthy) {
         await containerManager.destroy(containerInfo.containerId);

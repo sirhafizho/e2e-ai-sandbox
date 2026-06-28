@@ -8,6 +8,7 @@ import { ContainerManager } from '../sandbox/container-manager.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { createProvider } from '../llm/provider.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';
+import { filterToolsForSmallModel } from '../agent/tool-filter.js';
 import type { SessionStore } from '../db/session-store.js';
 import type { SettingsStore } from '../db/settings-store.js';
 import type { CheckpointStore } from '../db/checkpoint-store.js';
@@ -178,7 +179,11 @@ export function createWsHandlers(sessionId: string, deps: WsSessionDeps) {
                 session.resumeContext = undefined; // Only inject once
               }
 
-              const toolSpecs = deps.toolRegistry.list();
+              const allToolSpecs = deps.toolRegistry.list();
+              // Filter tool names for small models so the prompt matches the AI SDK definitions
+              const toolSpecs = isSmallModel(session.model)
+                ? filterToolsForSmallModel(allToolSpecs)
+                : allToolSpecs;
               systemPrompt = buildSystemPrompt({
                 toolNames: toolSpecs.map((t) => t.name),
                 sessionId: session.id,

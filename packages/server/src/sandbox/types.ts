@@ -5,6 +5,8 @@ export interface CreateContainerOptions {
   workspacePath?: string;
   /** Use a Docker named volume for /workspace (default: true if no workspacePath) */
   useVolume?: boolean;
+  /** Re-attach an existing named volume instead of creating a new one */
+  existingVolume?: string;
   /** CPU core limit (default: 2) */
   cpuLimit?: number;
   /** Memory limit in bytes (default: 4GB) */

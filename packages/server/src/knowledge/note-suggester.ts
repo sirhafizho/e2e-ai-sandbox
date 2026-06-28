@@ -184,8 +184,8 @@ export class NoteSuggester {
 
   /** Simple Jaccard similarity between two strings (word-level). */
   private similarity(a: string, b: string): number {
-    const wordsA = new Set(a.split(/\s+/));
-    const wordsB = new Set(b.split(/\s+/));
+    const wordsA = new Set(a.split(/\s+/).filter((w) => w.length > 0));
+    const wordsB = new Set(b.split(/\s+/).filter((w) => w.length > 0));
     const intersection = [...wordsA].filter((w) => wordsB.has(w)).length;
     const union = new Set([...wordsA, ...wordsB]).size;
     return union > 0 ? intersection / union : 0;

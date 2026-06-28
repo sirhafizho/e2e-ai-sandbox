@@ -85,7 +85,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'terminal_input', data: { shell_id: tabId, input: data } }));
+        ws.send(JSON.stringify({ type: 'terminal_input', shell_id: tabId, input: data }));
       }
     });
 
