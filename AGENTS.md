@@ -104,6 +104,33 @@ Priority order for understanding project state:
 - No co-author lines (Hafiz is sole author)
 - Use conventional commits when appropriate (feat:, fix:, docs:, etc.)
 
+### Verification Commands
+
+Always run these after making changes:
+
+```bash
+pnpm run typecheck    # TypeScript checks across all packages
+pnpm run test         # 479+ tests (server + container integration)
+pnpm run build        # Full production build
+```
+
+### Key Patterns (from 66+ bug fixes)
+
+These patterns have been validated through extensive auditing. Follow them:
+
+| Pattern | Rule | Why |
+|---------|------|-----|
+| **Shell escaping** | Always quote user inputs in shell commands: `'${val.replace(/'/g, "'\\''")}'` | Prevents command injection in container exec |
+| **File content transfer** | Use `printf '%s' '${base64}' \| base64 -d > file` (NOT `echo`) | `echo` adds trailing newline, corrupts files |
+| **JSON.parse safety** | Always wrap `JSON.parse()` in try-catch when reading from DB | Corrupted data crashes the server |
+| **Timer cleanup** | Clear `setTimeout`/`setInterval` in catch blocks, finally blocks, and React cleanup | Timer leaks cause state-on-unmounted and memory leaks |
+| **WS handler cleanup** | Capture `ws.on()` return values and call them in effect cleanup | Prevents stale closures and handler accumulation |
+| **Session status** | Check `session.status !== 'ready'` (not just `=== 'running'`) before processing | Prevents running agent on paused/terminated containers |
+| **Token budget** | Use `Math.max(0, ...)` for all usage setters | Negative budgets break level calculations |
+| **LIKE queries** | Escape `%` and `_` in user search input, use `ESCAPE '\'` clause | `%` and `_` are SQL wildcards |
+| **Docker streams** | Buffer incomplete multiplex frames across chunks (`pendingBuf`) | Partial frames cause data loss |
+| **Path traversal** | Use `posix.resolve()` then verify prefix, not just `includes('..')` | `/../` bypasses simple string checks |
+
 ### Documentation
 - Keep specs in `specs/` as behavioral requirements
 - Keep research/analysis in `docs/`

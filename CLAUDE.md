@@ -4,7 +4,7 @@
 
 **Forge** (working title) is a self-hostable, open-source autonomous coding agent that gives any LLM (cloud or local) a complete development environment — shell, filesystem, browser, git — inside Docker containers. Anyone with Docker and Ollama can run their own Devin-like agent on their PC. Anyone with a VPS can host it as a cloud agent for their team.
 
-**Current Phase:** BMAD Phase 1 (Analysis complete) — entering Phase 2 (Planning).
+**Current Phase:** Phase 5 — Manual Testing & Refinement (66 bugs fixed across 11 audit rounds, 479 tests passing).
 **Overhauled:** 2026-06-24 — scope expanded from "E2E AI Sandbox" to full autonomous agent with knowledge system, snapshots, and web UI.
 
 ---

@@ -2,8 +2,8 @@
 
 > Self-Hostable Autonomous Coding Agent (formerly "E2E AI Sandbox")
 
-**Current Phase:** Phase 3 COMPLETE — UI, integration, polish, settings API, code splitting done
-**Last Session:** [[Session 2026-06-26-settings-codesplit]]
+**Current Phase:** Phase 5 — Manual Testing & Refinement (66 bugs fixed across 11 audit rounds)
+**Last Session:** [[Session 2026-06-28-deep-audit-round2]]
 **Project Overhauled:** 2026-06-24 — expanded scope from sandbox to full autonomous agent
 
 ## Quick Links
@@ -29,7 +29,7 @@
 | Analysis | Done | `docs/research-findings.md`, `docs/devin-vs-sandbox-analysis.md` |
 | Planning | Done | `_bmad-output/planning-artifacts/epics-and-stories.md`, `sprint-plan.md` |
 | Solutioning | Skipped (covered by analysis) | Specs already detailed enough from overhaul |
-| Implementation | Phase 1 DONE (16), Phase 2 DONE (13), Phase 3 DONE (UI + integration + polish + settings + code splitting + error boundaries) | 261 server tests + UI build |
+| Implementation | Phase 1-3 DONE, Phase 4 DONE (knowledge, checkpoints, secrets, CI), Phase 5 IN PROGRESS (66 bugs fixed in 11 audit rounds) | 479 tests + UI build |
 
 ## Specs Status
 
